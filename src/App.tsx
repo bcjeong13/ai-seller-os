@@ -5,15 +5,19 @@ import { Dashboard } from "./ui/Dashboard";
 import { ProductList } from "./ui/ProductList";
 import { ProductDetail } from "./ui/ProductDetail";
 import { AddProductForm } from "./ui/AddProductForm";
+import { DetailPageBuilder } from "./ui/DetailPageBuilder";
+import { getProduct } from "./store/db";
 
-type View = "dashboard" | "products" | "add" | "detail";
+type View = "dashboard" | "products" | "add" | "detail" | "detailpage";
 
 export function App() {
   useStore();
   const [view, setView] = useState<View>("dashboard");
   const [selected, setSelected] = useState<string | null>(null);
+  const [detailFor, setDetailFor] = useState<string | null>(null);
 
   const open = (id: string) => { setSelected(id); setView("detail"); };
+  const openDetailPage = (id: string | null) => { setDetailFor(id); setView("detailpage"); };
   const hasProducts = getProducts().length > 0;
 
   return (
@@ -39,12 +43,14 @@ export function App() {
         <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>대시보드</button>
         <button className={view === "products" || view === "detail" ? "active" : ""} onClick={() => setView("products")}>상품</button>
         <button className={view === "add" ? "active" : ""} onClick={() => setView("add")}>상품 추가</button>
+        <button className={view === "detailpage" ? "active" : ""} onClick={() => openDetailPage(null)}>상세페이지</button>
       </div>
 
       {view === "dashboard" && <Dashboard onOpen={open} />}
       {view === "products" && <ProductList onOpen={open} onAdd={() => setView("add")} />}
       {view === "add" && <AddProductForm onDone={() => setView("products")} />}
-      {view === "detail" && selected && <ProductDetail id={selected} onBack={() => setView("products")} />}
+      {view === "detail" && selected && <ProductDetail id={selected} onBack={() => setView("products")} onMakeDetailPage={() => openDetailPage(selected)} />}
+      {view === "detailpage" && <DetailPageBuilder product={detailFor ? getProduct(detailFor) ?? undefined : undefined} onBack={() => setView(detailFor ? "detail" : "dashboard")} />}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { agoText, freshnessLevel } from "../domain/freshness";
 import { STATUS_META, SUPPLIER_STOCK_META, CURRENCY_SYMBOL, Badge } from "./meta";
 import { PreflightModal } from "./PreflightModal";
 
-export function ProductDetail({ id, onBack }: { id: string; onBack: () => void }) {
+export function ProductDetail({ id, onBack, onMakeDetailPage }: { id: string; onBack: () => void; onMakeDetailPage: () => void }) {
   useStore();
   const product = getProduct(id);
   const [showPreflight, setShowPreflight] = useState(false);
@@ -55,6 +55,7 @@ export function ProductDetail({ id, onBack }: { id: string; onBack: () => void }
 
           <div className="btn-row" style={{ marginTop: 16 }}>
             <button className="btn primary" onClick={() => setShowPreflight(true)}>🛒 고객 주문 (발주 검증)</button>
+            <button className="btn" onClick={onMakeDetailPage}>📄 상세페이지 만들기</button>
             <button className="btn" onClick={() => refreshCollectedAt(product.id)}>🔄 공급처 재확인</button>
           </div>
         </div>

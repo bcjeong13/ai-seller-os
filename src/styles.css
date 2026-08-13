@@ -227,3 +227,21 @@ input, select { font-family: inherit; font-size: 14px; }
 .recs li { margin: 3px 0; }
 .back { background: none; border: none; color: var(--muted); font-weight: 600; padding: 0; margin-bottom: 12px; }
 .back:hover { color: var(--accent); }
+
+/* ---------- Detail page builder ---------- */
+.checks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
+.copy-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f1f2f5; }
+.copy-row:last-child { border-bottom: none; }
+.tagchip { background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 4px 9px; font-size: 12.5px; font-weight: 600; }
+.detail-preview {
+  background: #fafbfc; border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; max-height: 460px; overflow-y: auto;
+}
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #171a20; color: #fff; padding: 10px 18px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 600; box-shadow: var(--shadow-lg); z-index: 60;
+  animation: pop 0.16s ease;
+}
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
