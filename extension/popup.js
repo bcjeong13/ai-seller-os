@@ -35,8 +35,25 @@ function extractor() {
     }
   } catch (e) { /* ignore */ }
 
+  // 스펙 표 자동 수집: 2칸(이름/값) 구조의 행(li/tr)을 찾아 key: value 로 수집
+  const specs = [];
+  try {
+    const seen = new Set();
+    document.querySelectorAll("li, tr, dl").forEach((el) => {
+      const kids = Array.from(el.children).filter((c) => c.textContent && c.textContent.trim());
+      if (kids.length === 2) {
+        const k = kids[0].textContent.trim().replace(/\s+/g, " ");
+        const v = kids[1].textContent.trim().replace(/\s+/g, " ");
+        if (k && v && k.length <= 20 && v.length <= 60 && !/[\n]/.test(k) && !seen.has(k)) {
+          seen.add(k);
+          specs.push([k, v]);
+        }
+      }
+    });
+  } catch (e) { /* ignore */ }
+
   const selection = (window.getSelection && window.getSelection().toString()) || "";
-  return { name, currency, price, url: location.href, selection };
+  return { name, currency, price, url: location.href, specs: specs.slice(0, 25), selection };
 }
 
 function fill(d) {
@@ -45,7 +62,10 @@ function fill(d) {
   if (d.currency) $("currency").value = d.currency;
   if (d.price) $("price").value = d.price;
   if (d.url) $("url").value = d.url;
-  if (d.selection) $("raw").value = d.selection.trim();
+  const parts = [];
+  if (d.specs && d.specs.length) parts.push(d.specs.map(([k, v]) => `${k}: ${v}`).join("\n"));
+  if (d.selection && d.selection.trim()) parts.push(d.selection.trim());
+  if (parts.length) $("raw").value = parts.join("\n");
 }
 
 async function run() {
@@ -59,10 +79,11 @@ async function run() {
     }
     const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractor });
     fill(res && res.result);
-    const hasSel = res && res.result && res.result.selection && res.result.selection.trim();
-    $("status").textContent = hasSel
-      ? "수집 완료 — 확인 후 복사하세요."
-      : "상품명·가격 수집됨. 옵션/특징은 페이지에서 드래그 선택 후 다시 열어주세요.";
+    const r = res && res.result;
+    const got = r && ((r.specs && r.specs.length) || (r.selection && r.selection.trim()));
+    $("status").textContent = got
+      ? "수집 완료 — 확인/정리 후 복사하세요."
+      : "상품명·가격 수집됨. 옵션/특징이 없으면 페이지에서 드래그 선택 후 다시 열어주세요.";
   } catch (e) {
     $("status").textContent = "이 페이지에서 자동 수집 불가 — 값을 직접 입력하세요.";
   }
