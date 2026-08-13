@@ -5,7 +5,7 @@ import { Dashboard } from "./ui/Dashboard";
 import { ProductList } from "./ui/ProductList";
 import { ProductDetail } from "./ui/ProductDetail";
 import { AddProductForm } from "./ui/AddProductForm";
-import { DetailPageBuilder } from "./ui/DetailPageBuilder";
+import { DetailPageBuilder, DetailPagePicker } from "./ui/DetailPageBuilder";
 import { getProduct } from "./store/db";
 
 type View = "dashboard" | "products" | "add" | "detail" | "detailpage";
@@ -15,9 +15,10 @@ export function App() {
   const [view, setView] = useState<View>("dashboard");
   const [selected, setSelected] = useState<string | null>(null);
   const [detailFor, setDetailFor] = useState<string | null>(null);
+  const [detailBlank, setDetailBlank] = useState(false);
 
   const open = (id: string) => { setSelected(id); setView("detail"); };
-  const openDetailPage = (id: string | null) => { setDetailFor(id); setView("detailpage"); };
+  const openDetailPage = (id: string | null) => { setDetailFor(id); setDetailBlank(false); setView("detailpage"); };
   const hasProducts = getProducts().length > 0;
 
   return (
@@ -50,7 +51,13 @@ export function App() {
       {view === "products" && <ProductList onOpen={open} onAdd={() => setView("add")} />}
       {view === "add" && <AddProductForm onDone={() => setView("products")} />}
       {view === "detail" && selected && <ProductDetail id={selected} onBack={() => setView("products")} onMakeDetailPage={() => openDetailPage(selected)} />}
-      {view === "detailpage" && <DetailPageBuilder product={detailFor ? getProduct(detailFor) ?? undefined : undefined} onBack={() => setView(detailFor ? "detail" : "dashboard")} />}
+      {view === "detailpage" && (
+        detailFor
+          ? <DetailPageBuilder product={getProduct(detailFor) ?? undefined} onBack={() => openDetailPage(null)} />
+          : detailBlank
+            ? <DetailPageBuilder onBack={() => openDetailPage(null)} />
+            : <DetailPagePicker onPick={(id) => openDetailPage(id)} onBlank={() => { setDetailBlank(true); }} />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@
 // ============================================================
 
 import { useSyncExternalStore } from "react";
-import type { Product, CostInputs, SupplierStock } from "../domain/types";
+import type { Product, CostInputs, SupplierStock, DetailDraft } from "../domain/types";
 import type { Order } from "../domain/orders";
 import { buildOrder } from "../domain/orders";
 import { orderPreflightCheck, type PreflightResult } from "../domain/preflight";
@@ -134,6 +134,15 @@ export function updateCost(id: string, newCost: CostInputs, note = "원가 갱�
     }
     return next;
   });
+}
+
+/** 상세페이지 초안 저장 (다시 열어 수정 가능) */
+export function saveDetailDraft(id: string, draft: DetailDraft) {
+  mutateProduct(id, (p) => ({
+    ...p,
+    detailDraft: draft,
+    events: [{ at: Date.now(), type: "DETAIL_PAGE", message: "상세페이지 저장" }, ...p.events],
+  }));
 }
 
 /** 공급처 재고 상태 변경 */

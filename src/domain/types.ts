@@ -89,6 +89,25 @@ export interface EventLog {
   message: string;
 }
 
+/** 상세페이지 작성 초안 (상품에 저장 — 다시 열어 수정) */
+export interface DetailDraft {
+  category: string;
+  target: string;
+  features: string[];
+  options: string[];
+  freeShipping: boolean;
+  returnEnabled: boolean;
+  returnDays: number;
+  freeReturn: boolean;
+  exchange: boolean;
+  qualityGuarantee: boolean;
+  gift: string;
+  deliveryMinDays: number;
+  deliveryMaxDays: number;
+  isOverseasAgent: boolean;
+  updatedAt: number;
+}
+
 /** 상품 (국내 마켓에 올린 판매 상품) */
 export interface Product {
   id: string;
@@ -131,6 +150,9 @@ export interface Product {
 
   costHistory: CostHistoryEntry[];
   events: EventLog[];
+
+  /** 상세페이지 작성 초안 (선택) */
+  detailDraft?: DetailDraft;
 }
 
 /** 관부가세 계산 결과 */

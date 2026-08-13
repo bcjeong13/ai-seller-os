@@ -212,6 +212,40 @@ export function generateDetailPage(input: DetailPageInput): DetailPageOutput {
   return { nameCandidates, keywords, tags, sections, faq, shippingNotice: ship, returnNotice: ret, warnings, html, plainText };
 }
 
+/**
+ * 소싱 페이지에서 복사한 텍스트 → 특징/옵션 후보 추출 (붙여넣기 파싱).
+ * 완벽하지 않으며 초안일 뿐 — 사용자가 확인/수정한다.
+ */
+export function parsePastedInfo(text: string): { features: string[]; options: string[] } {
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const features: string[] = [];
+  const options: string[] = [];
+  const optionLabel = /(색상|색깔|컬러|사이즈|규격|옵션|종류|스타일|수량|color|size|style)/i;
+  const junk = /^(가격|배송|리뷰|구매|평점|판매|무료|쿠폰|할인|₩|\$|¥|장바구니|바로구매|\d[\d,.\s]*원?)$/i;
+
+  for (const raw of lines) {
+    const line = raw.replace(/^[·•\-*▶●]\s*/, "").trim();
+    if (!line || junk.test(line) || line.length > 60) continue;
+
+    const colon = line.match(/^(.{1,20}?)\s*[:：]\s*(.+)$/);
+    if (colon) {
+      const key = colon[1].trim();
+      const val = colon[2].trim();
+      if (optionLabel.test(key)) {
+        val.split(/[,，·、/|]+/).map((s) => s.trim()).filter((s) => s && s.length <= 30).forEach((o) => options.push(o));
+      } else if (val.length <= 40) {
+        features.push(`${key}: ${val}`);
+      }
+      continue;
+    }
+    // 불릿/짧은 서술 → 특징 후보
+    if (raw.match(/^[·•\-*▶●]/) && line.length >= 3) {
+      features.push(line);
+    }
+  }
+  return { features: dedupe(features).slice(0, 12), options: dedupe(options).slice(0, 20) };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

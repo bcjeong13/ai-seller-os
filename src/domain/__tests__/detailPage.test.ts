@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateDetailPage, type DetailPageInput } from "../detailPage";
+import { generateDetailPage, parsePastedInfo, type DetailPageInput } from "../detailPage";
 
 const base: DetailPageInput = {
   productName: "차량용 무선 핸드폰 거치대",
@@ -58,5 +58,23 @@ describe("상세페이지 생성 (§41)", () => {
   it("개인통관고유부호 FAQ 포함 (구매대행)", () => {
     const out = generateDetailPage(base);
     expect(out.faq.some((f) => f.q.includes("개인통관"))).toBe(true);
+  });
+});
+
+describe("붙여넣기 파싱 (소싱 페이지 → 특징/옵션)", () => {
+  it("옵션 라벨 줄에서 옵션 후보 추출", () => {
+    const { options } = parsePastedInfo("색상: 블랙, 화이트, 베이지");
+    expect(options).toEqual(["블랙", "화이트", "베이지"]);
+  });
+
+  it("속성(key:value) 줄은 특징 후보로", () => {
+    const { features } = parsePastedInfo("재질: 금속섬유 복합재\n프레임 수: 10K");
+    expect(features).toContain("재질: 금속섬유 복합재");
+  });
+
+  it("불릿 줄을 특징으로, 가격/잡음은 제외", () => {
+    const { features } = parsePastedInfo("· 강력한 방풍 설계\n₩3,723\n장바구니");
+    expect(features).toContain("강력한 방풍 설계");
+    expect(features.some((f) => f.includes("3,723"))).toBe(false);
   });
 });
