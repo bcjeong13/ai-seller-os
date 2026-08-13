@@ -13,6 +13,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
   const oos = count((p) => p.status === "OUT_OF_STOCK");
   const blocked = count((p) => p.status === "BLOCKED");
   const syncPending = count((p) => channelActionNeeded(p).pending);
+  const naverPending = count((p) => (p.pendingChannels ?? []).length > 0);
 
   const risky = products.filter((p) =>
     ["LOSS", "DANGER", "WARNING", "OUT_OF_STOCK", "BLOCKED"].includes(p.status)
@@ -55,6 +56,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
         <RiskTile n={oos} t="📦 공급처 품절" color="var(--stock)" />
         <RiskTile n={blocked} t="⛔ 차단" color="var(--block)" />
         <RiskTile n={syncPending} t="🔁 채널 반영 필요" color="var(--accent)" />
+        <RiskTile n={naverPending} t="🟢 네이버 승인 대기" color="#068a4c" />
       </div>
 
       {risky.length === 0 ? (
@@ -70,7 +72,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
               <div key={p.id} className="card prow" onClick={() => onOpen(p.id)}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                    <ChannelChips channels={p.channels} />
+                    <ChannelChips channels={p.channels} pending={p.pendingChannels} />
                     <span className="pname">{p.name}</span>
                   </div>
                   <div className="pmeta">판매가 {formatKrw(p.sellingPriceKrw)}</div>

@@ -83,7 +83,8 @@ export function demoProducts(): Product[] {
   p2.channels = ["COUPANG", "11ST", "GMARKET"];
   p3.channels = ["NAVER"];
   p4.channels = ["COUPANG"];
-  p5.channels = [];
+  p5.channels = ["COUPANG", "11ST", "GMARKET"];
+  p5.pendingChannels = ["NAVER"]; // 네이버 승인 대기 데모
 
   for (const p of [p1, p2, p3, p4, p5]) {
     p.status = deriveStatus(p);

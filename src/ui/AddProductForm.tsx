@@ -5,7 +5,17 @@ import { addProduct, saveDetailDraft } from "../store/db";
 import { formatKrw, formatPct } from "../domain/money";
 import type { Marketplace, Currency, DetailDraft } from "../domain/types";
 import { parseImportBlock } from "../domain/importer";
-import { CURRENCY_LABEL, CURRENCY_SYMBOL } from "./meta";
+import { MARKET_FEE_DEFAULT } from "../domain/factory";
+import { CURRENCY_LABEL, CURRENCY_SYMBOL, CHANNEL_META } from "./meta";
+
+// 바로 올릴 채널(네이버 제외). 네이버는 검토 후 승인.
+const IMMEDIATE_CHANNELS: Marketplace[] = ["COUPANG", "11ST", "GMARKET", "AUCTION"];
+
+/** 선택 채널 중 가장 높은 수수료를 손익 기준으로 (모든 채널에서 안전) */
+function pickFeeMarket(chosen: Marketplace[]): Marketplace {
+  if (chosen.length === 0) return "NAVER";
+  return chosen.reduce((a, b) => (MARKET_FEE_DEFAULT[b] > MARKET_FEE_DEFAULT[a] ? b : a));
+}
 
 type PriceMode = "target" | "manual";
 
@@ -24,7 +34,10 @@ async function fetchMarketRate(from: Currency): Promise<number | null> {
 export function AddProductForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [market, setMarket] = useState<Marketplace>("NAVER");
+  const [immediate, setImmediate] = useState<Marketplace[]>([...IMMEDIATE_CHANNELS]);
+  const [naverReview, setNaverReview] = useState(true);
+  const toggleImmediate = (c: Marketplace) =>
+    setImmediate((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   const [currency, setCurrency] = useState<Currency>("KRW");
   const [srcPrice, setSrcPrice] = useState(8000);
@@ -59,11 +72,13 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
   };
 
   const effectiveRate = currency === "KRW" ? 1 : Number(rate) || 0;
+  const chosenChannels: Marketplace[] = [...immediate, ...(naverReview ? (["NAVER"] as Marketplace[]) : [])];
+  const feeMarket = pickFeeMarket(chosenChannels);
 
   const baseInput: NewProductInput = {
     name: name || "새 상품",
     sourceUrl: url,
-    marketplace: market,
+    marketplace: feeMarket,
     sellingPriceKrw: 0,
     sourceCurrency: currency,
     sourcePrice: Number(srcPrice) || 0,
@@ -106,6 +121,8 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
     if (!name.trim()) { alert("상품명을 입력해 주세요."); return; }
     if (effectiveSelling <= 0) { alert("판매가를 확인해 주세요."); return; }
     const p = makeProduct({ ...baseInput, sellingPriceKrw: effectiveSelling });
+    p.channels = [...immediate];
+    p.pendingChannels = naverReview ? ["NAVER"] : [];
     addProduct(p);
     if (impOptions.length || impFeatures.length) {
       const draft: DetailDraft = {
@@ -152,15 +169,27 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
             <label>소싱 상품 URL <span className="hint">(선택 — 1688 / 알리익스프레스 등)</span></label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
           </div>
-          <div className="field">
-            <label>판매 마켓</label>
-            <select value={market} onChange={(e) => setMarket(e.target.value as Marketplace)}>
-              <option value="NAVER">네이버 스마트스토어</option>
-              <option value="COUPANG">쿠팡</option>
-              <option value="11ST">11번가</option>
-              <option value="GMARKET">G마켓</option>
-              <option value="OTHER">기타</option>
-            </select>
+          <div className="field full">
+            <label>판매 채널 (올릴 곳)</label>
+            <div className="channel-grid">
+              {IMMEDIATE_CHANNELS.map((c) => {
+                const on = immediate.includes(c);
+                const m = CHANNEL_META[c];
+                return (
+                  <div key={c} className={"chkbtn" + (on ? " on" : "")} onClick={() => toggleImmediate(c)}>
+                    <input type="checkbox" checked={on} readOnly />
+                    <span className="chch" style={{ color: m.color, background: m.bg }}>{m.short}</span>
+                    {m.label}
+                  </div>
+                );
+              })}
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer", fontWeight: 400 }}>
+              <input type="checkbox" checked={naverReview} onChange={(e) => setNaverReview(e.target.checked)} />
+              <span className="chch" style={{ color: CHANNEL_META.NAVER.color, background: CHANNEL_META.NAVER.bg }}>N</span>
+              네이버 스마트스토어 — <b style={{ color: "var(--warn)" }}>검토 후 등록(승인 대기)</b>
+            </label>
+            <span className="hint">네이버는 도배 방지를 위해 바로 안 올리고 승인 대기로 담아둡니다.</span>
           </div>
           <div className="field">
             <label>소싱처 통화</label>

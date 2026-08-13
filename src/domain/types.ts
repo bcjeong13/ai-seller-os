@@ -150,6 +150,9 @@ export interface Product {
   /** 실제 등록(업로드)한 판매 채널 목록 */
   channels: Marketplace[];
 
+  /** 등록 전 검토·승인 대기 채널 (주로 네이버) */
+  pendingChannels: Marketplace[];
+
   /** 마지막 공급처 데이터 수집 시각(ms) */
   lastCollectedAt: number;
   createdAt: number;

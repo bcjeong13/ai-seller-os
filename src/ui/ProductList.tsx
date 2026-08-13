@@ -36,7 +36,7 @@ export function ProductList({
               <div key={p.id} className="card prow" onClick={() => onOpen(p.id)}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                    <ChannelChips channels={p.channels} />
+                    <ChannelChips channels={p.channels} pending={p.pendingChannels} />
                     <span className="pname">{p.name}</span>
                   </div>
                   <div className="pmeta">

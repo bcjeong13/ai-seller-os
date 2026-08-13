@@ -55,14 +55,19 @@ export const CHANNEL_META: Record<Marketplace, { short: string; label: string; c
   OTHER: { short: "·", label: "기타", color: "#475569", bg: "#eef1f5" },
 };
 
-export function ChannelChips({ channels }: { channels?: Marketplace[] }) {
+export function ChannelChips({ channels, pending }: { channels?: Marketplace[]; pending?: Marketplace[] }) {
   const list = channels ?? [];
-  if (list.length === 0) return <span className="tiny" style={{ color: "var(--muted2)" }}>미등록</span>;
+  const pend = pending ?? [];
+  if (list.length === 0 && pend.length === 0) return <span className="tiny" style={{ color: "var(--muted2)" }}>미등록</span>;
   return (
     <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
       {list.map((c) => {
         const m = CHANNEL_META[c];
         return <span key={c} className="chch" style={{ color: m.color, background: m.bg }} title={m.label}>{m.short}</span>;
+      })}
+      {pend.map((c) => {
+        const m = CHANNEL_META[c];
+        return <span key={"p" + c} className="chch pend" title={m.label + " 승인 대기"}>{m.short}⏳</span>;
       })}
     </span>
   );

@@ -76,6 +76,7 @@ export function makeProduct(input: NewProductInput): Product {
     minMarginPct: input.minMarginPct ?? 15,
     minProfitKrw: input.minProfitKrw ?? 0,
     channels: [],
+    pendingChannels: [],
     legalBlock: false,
     customsThresholdKrw: 200000, // ≈ $150
     dutyRatePct: 8,

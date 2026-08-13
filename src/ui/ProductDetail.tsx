@@ -168,14 +168,33 @@ function ChannelSyncCard({ product }: { product: Product }) {
 
 function ChannelPanel({ product }: { product: Product }) {
   const listed = product.channels ?? [];
+  const pending = product.pendingChannels ?? [];
   const toggle = (c: Marketplace) => {
     const next = listed.includes(c) ? listed.filter((x) => x !== c) : [...listed, c];
     updateProduct(product.id, { channels: next });
   };
+  const approve = (c: Marketplace) =>
+    updateProduct(product.id, { channels: [...listed, c], pendingChannels: pending.filter((x) => x !== c) });
+  const reject = (c: Marketplace) =>
+    updateProduct(product.id, { pendingChannels: pending.filter((x) => x !== c) });
+
   return (
     <div className="card pad">
       <div style={{ fontWeight: 700, marginBottom: 4 }}>판매 채널</div>
-      <div className="tiny muted" style={{ marginBottom: 12 }}>이 상품을 실제로 올린 채널을 체크하세요. 목록·대시보드에 표시됩니다.</div>
+      <div className="tiny muted" style={{ marginBottom: 12 }}>실제로 올린 채널을 체크하세요. 목록·대시보드에 표시됩니다.</div>
+
+      {pending.map((c) => {
+        const m = CHANNEL_META[c];
+        return (
+          <div key={c} className="warn-note" style={{ background: "var(--warn-bg)", color: "#8a5a08", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="chch" style={{ color: m.color, background: m.bg }}>{m.short}</span>
+            <span style={{ flex: 1 }}><b>{m.label} 승인 대기</b> — 검토 후 등록하세요</span>
+            <button className="btn sm primary" onClick={() => approve(c)}>승인(등록)</button>
+            <button className="btn sm" onClick={() => reject(c)}>취소</button>
+          </div>
+        );
+      })}
+
       <div className="channel-grid">
         {ALL_CHANNELS.map((c) => {
           const on = listed.includes(c);
