@@ -4,7 +4,10 @@
 // ============================================================
 
 /** 판매 마켓 */
-export type Marketplace = "NAVER" | "COUPANG" | "11ST" | "GMARKET" | "OTHER";
+export type Marketplace = "NAVER" | "COUPANG" | "11ST" | "GMARKET" | "AUCTION" | "OTHER";
+
+/** 등록 필요 시 순회할 전체 채널 목록 */
+export const ALL_CHANNELS: Marketplace[] = ["NAVER", "COUPANG", "11ST", "GMARKET", "AUCTION"];
 
 /** 소싱처 통화 */
 export type Currency = "KRW" | "CNY" | "USD";
@@ -143,6 +146,9 @@ export interface Product {
   dutyRatePct: number;
 
   status: ProductStatus;
+
+  /** 실제 등록(업로드)한 판매 채널 목록 */
+  channels: Marketplace[];
 
   /** 마지막 공급처 데이터 수집 시각(ms) */
   lastCollectedAt: number;

@@ -1,7 +1,7 @@
 import { useStore } from "../store/db";
 import { productProfit } from "../domain/status";
 import { formatKrw } from "../domain/money";
-import { STATUS_META, Badge } from "./meta";
+import { STATUS_META, Badge, ChannelChips } from "./meta";
 import type { Product } from "../domain/types";
 
 export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
@@ -67,8 +67,11 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
             return (
               <div key={p.id} className="card prow" onClick={() => onOpen(p.id)}>
                 <div>
-                  <div className="pname">{p.name}</div>
-                  <div className="pmeta">{p.marketplace} · 판매가 {formatKrw(p.sellingPriceKrw)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <ChannelChips channels={p.channels} />
+                    <span className="pname">{p.name}</span>
+                  </div>
+                  <div className="pmeta">판매가 {formatKrw(p.sellingPriceKrw)}</div>
                 </div>
                 <div className="col hide-sm">
                   <div className="k">현재 원가</div>

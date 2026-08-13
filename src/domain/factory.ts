@@ -21,6 +21,7 @@ export const MARKET_FEE_DEFAULT: Record<Marketplace, number> = {
   COUPANG: 10.8,
   "11ST": 8,
   GMARKET: 8,
+  AUCTION: 8,
   OTHER: 8,
 };
 
@@ -74,6 +75,7 @@ export function makeProduct(input: NewProductInput): Product {
     sellerInventory: 0, // 구매대행 = 항상 0
     minMarginPct: input.minMarginPct ?? 15,
     minProfitKrw: input.minProfitKrw ?? 0,
+    channels: [],
     legalBlock: false,
     customsThresholdKrw: 200000, // ≈ $150
     dutyRatePct: 8,

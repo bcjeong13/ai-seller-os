@@ -1,4 +1,4 @@
-import type { ProductStatus, PreflightStatus, SupplierStock, Currency } from "../domain/types";
+import type { ProductStatus, PreflightStatus, SupplierStock, Currency, Marketplace } from "../domain/types";
 
 export const CURRENCY_SYMBOL: Record<Currency, string> = {
   KRW: "₩",
@@ -45,6 +45,28 @@ export const SUPPLIER_STOCK_META: Record<SupplierStock, string> = {
   UNKNOWN: "불명",
   DATA_UNAVAILABLE: "데이터 없음",
 };
+
+export const CHANNEL_META: Record<Marketplace, { short: string; label: string; color: string; bg: string }> = {
+  NAVER: { short: "N", label: "네이버", color: "#068a4c", bg: "#e4f8ee" },
+  COUPANG: { short: "C", label: "쿠팡", color: "#1f5fd6", bg: "#e7effc" },
+  "11ST": { short: "11", label: "11번가", color: "#c81e1e", bg: "#fdeaea" },
+  GMARKET: { short: "G", label: "G마켓", color: "#166534", bg: "#e7f5ec" },
+  AUCTION: { short: "옥", label: "옥션", color: "#b42318", bg: "#fdece9" },
+  OTHER: { short: "·", label: "기타", color: "#475569", bg: "#eef1f5" },
+};
+
+export function ChannelChips({ channels }: { channels?: Marketplace[] }) {
+  const list = channels ?? [];
+  if (list.length === 0) return <span className="tiny" style={{ color: "var(--muted2)" }}>미등록</span>;
+  return (
+    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+      {list.map((c) => {
+        const m = CHANNEL_META[c];
+        return <span key={c} className="chch" style={{ color: m.color, background: m.bg }} title={m.label}>{m.short}</span>;
+      })}
+    </span>
+  );
+}
 
 export function Badge({ meta }: { meta: Meta }) {
   return (

@@ -2,7 +2,7 @@ import { useStore } from "../store/db";
 import { productProfit } from "../domain/status";
 import { formatKrw, formatPct } from "../domain/money";
 import { agoText } from "../domain/freshness";
-import { STATUS_META, Badge } from "./meta";
+import { STATUS_META, Badge, ChannelChips } from "./meta";
 
 export function ProductList({
   onOpen,
@@ -35,9 +35,12 @@ export function ProductList({
             return (
               <div key={p.id} className="card prow" onClick={() => onOpen(p.id)}>
                 <div>
-                  <div className="pname">{p.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <ChannelChips channels={p.channels} />
+                    <span className="pname">{p.name}</span>
+                  </div>
                   <div className="pmeta">
-                    {p.marketplace} · 판매가 {formatKrw(p.sellingPriceKrw)} · 확인 {agoText(p.lastCollectedAt, now)}
+                    판매가 {formatKrw(p.sellingPriceKrw)} · 확인 {agoText(p.lastCollectedAt, now)}
                   </div>
                 </div>
                 <div className="col hide-sm">

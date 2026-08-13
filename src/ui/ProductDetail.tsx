@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { Product, CostInputs, SupplierStock } from "../domain/types";
+import type { Product, CostInputs, SupplierStock, Marketplace } from "../domain/types";
+import { ALL_CHANNELS } from "../domain/types";
 import { getProduct, getOrdersFor, updateCost, updateProduct, setSupplierStock, refreshCollectedAt, deleteProduct, useStore } from "../store/db";
 import { computeProfit } from "../domain/profitEngine";
 import { productProfit } from "../domain/status";
 import { formatKrw, formatPct } from "../domain/money";
 import { agoText, freshnessLevel } from "../domain/freshness";
-import { STATUS_META, SUPPLIER_STOCK_META, CURRENCY_SYMBOL, Badge } from "./meta";
+import { STATUS_META, SUPPLIER_STOCK_META, CURRENCY_SYMBOL, CHANNEL_META, Badge } from "./meta";
 import { PreflightModal } from "./PreflightModal";
 
 export function ProductDetail({ id, onBack, onMakeDetailPage }: { id: string; onBack: () => void; onMakeDetailPage: () => void }) {
@@ -64,6 +65,7 @@ export function ProductDetail({ id, onBack, onMakeDetailPage }: { id: string; on
       <div className="two-col" style={{ marginTop: 16 }}>
         <Simulator product={product} />
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <ChannelPanel product={product} />
           <SupplierPanel product={product} />
           <CostHistory product={product} />
         </div>
@@ -124,6 +126,38 @@ function Simulator({ product }: { product: Product }) {
         <button className="btn primary sm" disabled={!changed} onClick={apply}>적용 (저장)</button>
         <button className="btn sm" disabled={!changed} onClick={() => { setSelling(product.sellingPriceKrw); setCny(product.cost.sourcePrice); setRate(product.cost.exchangeRate); setShip(product.cost.internationalShippingKrw); }}>되돌리기</button>
       </div>
+    </div>
+  );
+}
+
+function ChannelPanel({ product }: { product: Product }) {
+  const listed = product.channels ?? [];
+  const toggle = (c: Marketplace) => {
+    const next = listed.includes(c) ? listed.filter((x) => x !== c) : [...listed, c];
+    updateProduct(product.id, { channels: next });
+  };
+  return (
+    <div className="card pad">
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>판매 채널</div>
+      <div className="tiny muted" style={{ marginBottom: 12 }}>이 상품을 실제로 올린 채널을 체크하세요. 목록·대시보드에 표시됩니다.</div>
+      <div className="channel-grid">
+        {ALL_CHANNELS.map((c) => {
+          const on = listed.includes(c);
+          const m = CHANNEL_META[c];
+          return (
+            <div key={c} className={"chkbtn" + (on ? " on" : "")} onClick={() => toggle(c)}>
+              <input type="checkbox" checked={on} readOnly />
+              <span className="chch" style={{ color: m.color, background: m.bg }}>{m.short}</span>
+              {m.label}
+            </div>
+          );
+        })}
+      </div>
+      {listed.includes("NAVER") && (
+        <div className="tiny" style={{ marginTop: 10, color: "var(--warn)" }}>
+          ⚠️ 네이버는 중복·도배성 대량등록 시 노출이 떨어질 수 있어요. 선별 등록 권장.
+        </div>
+      )}
     </div>
   );
 }

@@ -79,6 +79,12 @@ export function demoProducts(): Product[] {
   });
   p5.lastCollectedAt = Date.now() - 30 * HOUR;
 
+  p1.channels = ["NAVER", "COUPANG", "11ST"];
+  p2.channels = ["COUPANG", "11ST", "GMARKET"];
+  p3.channels = ["NAVER"];
+  p4.channels = ["COUPANG"];
+  p5.channels = [];
+
   for (const p of [p1, p2, p3, p4, p5]) {
     p.status = deriveStatus(p);
     list.push(p);

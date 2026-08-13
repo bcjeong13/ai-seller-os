@@ -245,3 +245,15 @@ input, select { font-family: inherit; font-size: 14px; }
   animation: pop 0.16s ease;
 }
 textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ---------- Channel chips ---------- */
+.chch {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px;
+  padding: 0 5px; border-radius: 6px; font-size: 11px; font-weight: 800; line-height: 1;
+}
+.channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.chkbtn {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 10px; cursor: pointer; font-size: 13.5px; transition: all .12s ease; background: #fff;
+}
+.chkbtn.on { border-color: var(--accent); background: var(--accent-soft); }
