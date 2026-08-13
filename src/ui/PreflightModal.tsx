@@ -20,7 +20,10 @@ export function PreflightModal({
 
   const doOrder = (approved: boolean) => {
     placeOrder(product.id, 1, result, approved);
-    setPlaced(approved ? "승인 발주 처리됨 (스냅샷 저장)" : "발주 처리됨 (스냅샷 저장)");
+    setPlaced(
+      (approved ? "승인 후 " : "") +
+        "이 주문을 기록했어요 — 예상손익 스냅샷 저장됨. 실제 발주는 공급처(도매꾹 등)에서 진행하세요."
+    );
   };
 
   return (
