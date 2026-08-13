@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { makeProduct, type NewProductInput } from "../domain/factory";
 import { computeProfit, recommendSellingPrice } from "../domain/profitEngine";
-import { addProduct } from "../store/db";
+import { addProduct, saveDetailDraft } from "../store/db";
 import { formatKrw, formatPct } from "../domain/money";
-import type { Marketplace, Currency } from "../domain/types";
+import type { Marketplace, Currency, DetailDraft } from "../domain/types";
+import { parseImportBlock } from "../domain/importer";
 import { CURRENCY_LABEL, CURRENCY_SYMBOL } from "./meta";
 
 type PriceMode = "target" | "manual";
@@ -36,6 +37,26 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
   const [selling, setSelling] = useState(12900);
   const [ship, setShip] = useState(1800);
   const [minMargin, setMinMargin] = useState(15);
+
+  const [importText, setImportText] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+  const [impOptions, setImpOptions] = useState<string[]>([]);
+  const [impFeatures, setImpFeatures] = useState<string[]>([]);
+
+  const doImport = () => {
+    const r = parseImportBlock(importText);
+    if (!r.ok) { setImportMsg("확장에서 복사한 데이터가 아니에요. 확장 팝업의 '복사'로 받은 내용을 붙여넣어 주세요."); return; }
+    if (r.name) setName(r.name);
+    changeCurrency(r.currency);
+    if (r.price) setSrcPrice(r.price);
+    if (r.currency !== "KRW") {/* 환율은 changeCurrency 기본값 유지, 자동 버튼으로 갱신 */}
+    setShip(r.shipping);
+    if (r.url) setUrl(r.url);
+    setImpOptions(r.options);
+    setImpFeatures(r.features);
+    setImportMsg(`✅ 가져옴 — ${r.name || "상품"} / ${CURRENCY_SYMBOL[r.currency]}${r.price} · 옵션 ${r.options.length} · 특징 ${r.features.length}. 등록하면 상세페이지 초안에 반영됩니다.`);
+    setImportText("");
+  };
 
   const effectiveRate = currency === "KRW" ? 1 : Number(rate) || 0;
 
@@ -84,7 +105,17 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
   const submit = () => {
     if (!name.trim()) { alert("상품명을 입력해 주세요."); return; }
     if (effectiveSelling <= 0) { alert("판매가를 확인해 주세요."); return; }
-    addProduct(makeProduct({ ...baseInput, sellingPriceKrw: effectiveSelling }));
+    const p = makeProduct({ ...baseInput, sellingPriceKrw: effectiveSelling });
+    addProduct(p);
+    if (impOptions.length || impFeatures.length) {
+      const draft: DetailDraft = {
+        category: "", target: "", features: impFeatures, options: impOptions,
+        freeShipping: ship === 0, returnEnabled: true, returnDays: 30, freeReturn: false,
+        exchange: true, qualityGuarantee: true, gift: "",
+        deliveryMinDays: 7, deliveryMaxDays: 14, isOverseasAgent: true, updatedAt: Date.now(),
+      };
+      saveDetailDraft(p.id, draft);
+    }
     onDone();
   };
 
@@ -94,6 +125,19 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
       <div className="pill-info" style={{ marginBottom: 16 }}>
         소싱 원가만 넣으면 됩니다. 판매가를 모르면 <b>"목표 마진으로 자동 계산"</b>을 쓰세요 —
         검색 없이 원가·수수료·배송비를 역산해 <b>권장 판매가</b>를 알려줍니다.
+      </div>
+
+      <div className="card pad" style={{ marginBottom: 16, borderColor: "var(--accent)" }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>📥 크롬 확장에서 가져오기 <span className="tiny muted">(선택)</span></div>
+        <div className="tiny muted" style={{ marginBottom: 8 }}>
+          "AI Seller OS 수집기" 확장의 <b>복사</b> 버튼으로 받은 내용을 붙여넣고 "가져오기"를 누르면 아래 항목이 자동으로 채워집니다.
+        </div>
+        <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={3}
+          placeholder="##AISOS## 로 시작하는 확장 복사 데이터를 붙여넣기" style={taStyle} />
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <button className="btn sm primary" onClick={doImport} disabled={!importText.trim()}>가져오기</button>
+        </div>
+        {importMsg && <div className="tiny" style={{ marginTop: 8, color: importMsg.startsWith("✅") ? "var(--safe)" : "var(--loss)" }}>{importMsg}</div>}
       </div>
 
       <div className="card pad">
@@ -241,6 +285,11 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
     </div>
   );
 }
+
+const taStyle: React.CSSProperties = {
+  padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10,
+  fontFamily: "inherit", fontSize: 14, resize: "vertical",
+};
 
 function KV({ k, v, accent }: { k: string; v: string; accent?: string }) {
   return (

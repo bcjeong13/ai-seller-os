@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="head">
+    <div class="logo">A</div>
+    <div>
+      <div class="title">AI Seller OS 수집기</div>
+      <div class="sub" id="status">페이지에서 수집 중…</div>
+    </div>
+  </div>
+
+  <div class="tip">💡 <b>상품 상세페이지</b>에서 옵션·특징 부분을 <b>마우스로 드래그(선택)</b>한 뒤 이 창을 열면 자동으로 담깁니다.</div>
+
+  <label>상품명</label>
+  <input id="name" type="text" />
+
+  <div class="row">
+    <div>
+      <label>통화</label>
+      <select id="currency">
+        <option value="KRW">원화 ₩</option>
+        <option value="CNY">위안 ¥</option>
+        <option value="USD">달러 $</option>
+      </select>
+    </div>
+    <div>
+      <label>상품가</label>
+      <input id="price" type="number" />
+    </div>
+    <div>
+      <label>배송비(원)</label>
+      <input id="shipping" type="number" value="0" />
+    </div>
+  </div>
+
+  <label>옵션·특징 <span class="muted">(드래그 선택한 내용 / 직접 수정)</span></label>
+  <textarea id="raw" rows="5" placeholder="색상: 블랙, 화이트&#10;재질: ...&#10;· 특징..."></textarea>
+
+  <label>URL</label>
+  <input id="url" type="text" />
+
+  <div class="btns">
+    <button id="copy" class="primary">📋 복사 (앱에 붙여넣기)</button>
+    <button id="open">앱 열기</button>
+  </div>
+  <div class="done" id="done"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
