@@ -1,5 +1,5 @@
 import { useStore } from "../store/db";
-import { productProfit } from "../domain/status";
+import { productProfit, channelActionNeeded } from "../domain/status";
 import { formatKrw } from "../domain/money";
 import { STATUS_META, Badge, ChannelChips } from "./meta";
 import type { Product } from "../domain/types";
@@ -12,6 +12,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
   const warn = count((p) => p.status === "WARNING" || p.status === "DANGER");
   const oos = count((p) => p.status === "OUT_OF_STOCK");
   const blocked = count((p) => p.status === "BLOCKED");
+  const syncPending = count((p) => channelActionNeeded(p).pending);
 
   const risky = products.filter((p) =>
     ["LOSS", "DANGER", "WARNING", "OUT_OF_STOCK", "BLOCKED"].includes(p.status)
@@ -53,6 +54,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
         <RiskTile n={warn} t="🟡 마진 주의" color="var(--warn)" />
         <RiskTile n={oos} t="📦 공급처 품절" color="var(--stock)" />
         <RiskTile n={blocked} t="⛔ 차단" color="var(--block)" />
+        <RiskTile n={syncPending} t="🔁 채널 반영 필요" color="var(--accent)" />
       </div>
 
       {risky.length === 0 ? (

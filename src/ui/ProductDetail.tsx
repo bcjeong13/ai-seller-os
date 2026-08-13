@@ -2,8 +2,8 @@ import { useState } from "react";
 import type { Product, CostInputs, SupplierStock, Marketplace } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
 import { getProduct, getOrdersFor, updateCost, updateProduct, setSupplierStock, refreshCollectedAt, deleteProduct, useStore } from "../store/db";
-import { computeProfit } from "../domain/profitEngine";
-import { productProfit } from "../domain/status";
+import { computeProfit, recommendSellingPrice } from "../domain/profitEngine";
+import { productProfit, channelActionNeeded } from "../domain/status";
 import { formatKrw, formatPct } from "../domain/money";
 import { agoText, freshnessLevel } from "../domain/freshness";
 import { STATUS_META, SUPPLIER_STOCK_META, CURRENCY_SYMBOL, CHANNEL_META, Badge } from "./meta";
@@ -53,6 +53,8 @@ export function ProductDetail({ id, onBack, onMakeDetailPage }: { id: string; on
               권장: ① 판매중지 ② 판매가 재계산 ③ 대체 공급처 검색
             </div>
           )}
+
+          <ChannelSyncCard product={product} />
 
           <div className="btn-row" style={{ marginTop: 16 }}>
             <button className="btn primary" onClick={() => setShowPreflight(true)}>🛒 고객 주문 (발주 검증)</button>
@@ -125,6 +127,40 @@ function Simulator({ product }: { product: Product }) {
       <div className="btn-row" style={{ marginTop: 14 }}>
         <button className="btn primary sm" disabled={!changed} onClick={apply}>적용 (저장)</button>
         <button className="btn sm" disabled={!changed} onClick={() => { setSelling(product.sellingPriceKrw); setCny(product.cost.sourcePrice); setRate(product.cost.exchangeRate); setShip(product.cost.internationalShippingKrw); }}>되돌리기</button>
+      </div>
+    </div>
+  );
+}
+
+function ChannelSyncCard({ product }: { product: Product }) {
+  const sync = channelActionNeeded(product);
+  const channels = product.channels ?? [];
+  if (!sync.pending) return null;
+
+  const isPrice = sync.action.includes("판매가");
+  const recPrice = recommendSellingPrice(product.cost, product.minMarginPct + 5);
+  const applyReprice = () => {
+    if (Number.isFinite(recPrice)) updateProduct(product.id, { sellingPriceKrw: recPrice });
+  };
+
+  return (
+    <div className="warn-note" style={{ marginTop: 14, background: "var(--warn-bg)", color: "#8a5a08" }}>
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>🔁 채널 반영 필요 — {sync.reason}</div>
+      <div>조치: <b>{sync.action}</b></div>
+      <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span className="tiny">반영할 채널:</span>
+        {channels.map((c) => {
+          const m = CHANNEL_META[c];
+          return <span key={c} className="chch" style={{ color: m.color, background: m.bg }}>{m.short}</span>;
+        })}
+      </div>
+      {isPrice && Number.isFinite(recPrice) && (
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button className="btn sm primary" onClick={applyReprice}>앱 판매가를 권장가 {formatKrw(recPrice)}로 반영</button>
+        </div>
+      )}
+      <div className="tiny" style={{ marginTop: 8, opacity: 0.85 }}>
+        ※ 지금은 각 채널에서 직접 반영하세요. 마켓 API 연동(Phase 5) 후 자동 반영됩니다.
       </div>
     </div>
   );
