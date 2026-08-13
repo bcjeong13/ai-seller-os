@@ -11,12 +11,13 @@ function product(over: Partial<CostInputs> = {}, patch: Partial<Product> = {}): 
     name: "테스트 상품",
     marketplace: "NAVER",
     sellingPriceKrw: 7000,
-    productCostCny: 5000,
+    sourcePrice: 5000,
     exchangeRate: 1,
     minMarginPct: 15,
   });
   const cost: CostInputs = {
-    productCostCny: 5000,
+    sourceCurrency: "KRW",
+    sourcePrice: 5000,
     exchangeRate: 1,
     internationalShippingKrw: 0,
     paymentFeePct: 0,
@@ -41,7 +42,7 @@ describe("★ ORDER_PREFLIGHT_CHECK (§2, §11)", () => {
   });
 
   it("시나리오 A — 주문 시점 원가 5,000→7,500 급등 → LOSS_RISK, 자동발주 차단", () => {
-    const p = product({ productCostCny: 7500 });
+    const p = product({ sourcePrice: 7500 });
     const r = orderPreflightCheck(p, Date.now());
     expect(r.profit.netProfitKrw).toBeLessThan(0);
     expect(r.status).toBe("LOSS_RISK");
@@ -57,7 +58,7 @@ describe("★ ORDER_PREFLIGHT_CHECK (§2, §11)", () => {
   });
 
   it("시나리오 C — 상품가 소폭(+2%), 국제배송비 1,500→4,000 급등 → 손실 포착", () => {
-    const p = product({ productCostCny: 5100, internationalShippingKrw: 4000 });
+    const p = product({ sourcePrice: 5100, internationalShippingKrw: 4000 });
     const r = orderPreflightCheck(p, Date.now());
     expect(r.profit.netProfitKrw).toBeLessThan(0);
     expect(r.status).toBe("LOSS_RISK");

@@ -13,7 +13,7 @@ export function computeCustoms(
   thresholdKrw: number,
   dutyRatePct: number
 ): CustomsResult {
-  const productPriceKrw = won(cost.productCostCny * cost.exchangeRate);
+  const productPriceKrw = won(cost.sourcePrice * cost.exchangeRate);
   const overThreshold = productPriceKrw > thresholdKrw;
 
   if (!overThreshold) {

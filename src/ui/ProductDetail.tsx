@@ -5,7 +5,7 @@ import { computeProfit } from "../domain/profitEngine";
 import { productProfit } from "../domain/status";
 import { formatKrw, formatPct } from "../domain/money";
 import { agoText, freshnessLevel } from "../domain/freshness";
-import { STATUS_META, SUPPLIER_STOCK_META, Badge } from "./meta";
+import { STATUS_META, SUPPLIER_STOCK_META, CURRENCY_SYMBOL, Badge } from "./meta";
 import { PreflightModal } from "./PreflightModal";
 
 export function ProductDetail({ id, onBack }: { id: string; onBack: () => void }) {
@@ -37,10 +37,10 @@ export function ProductDetail({ id, onBack }: { id: string; onBack: () => void }
         <div style={{ padding: "0 22px 20px" }}>
           <div className="kv-grid">
             <KV k="국내 판매가" v={formatKrw(product.sellingPriceKrw)} />
-            <KV k="1688 원가" v={formatKrw(pr.productPriceKrw)} />
+            <KV k="소싱 원가" v={`${CURRENCY_SYMBOL[product.cost.sourceCurrency]}${product.cost.sourcePrice} = ${formatKrw(pr.productPriceKrw)}`} />
             <KV k="공급처 재고" v={SUPPLIER_STOCK_META[product.supplierStock]} />
             <KV k="국제배송비" v={formatKrw(product.cost.internationalShippingKrw)} />
-            <KV k="환율" v={`${product.cost.exchangeRate}원/¥`} />
+            <KV k="환율" v={product.cost.sourceCurrency === "KRW" ? "—" : `${product.cost.exchangeRate}원/${CURRENCY_SYMBOL[product.cost.sourceCurrency]}`} />
             <KV k="예상 순이익" v={formatKrw(pr.netProfitKrw)} accent={pr.netProfitKrw < 0 ? "var(--loss)" : "var(--safe)"} />
             <KV k="순이익률" v={formatPct(pr.marginPct)} accent={pr.marginPct < product.minMarginPct ? "var(--warn)" : "var(--safe)"} />
             <KV k="셀러 재고" v={`${product.sellerInventory} (구매대행)`} />
@@ -83,22 +83,22 @@ export function ProductDetail({ id, onBack }: { id: string; onBack: () => void }
 // ---------- 손익 시뮬레이터 ----------
 function Simulator({ product }: { product: Product }) {
   const [selling, setSelling] = useState(product.sellingPriceKrw);
-  const [cny, setCny] = useState(product.cost.productCostCny);
+  const [cny, setCny] = useState(product.cost.sourcePrice);
   const [rate, setRate] = useState(product.cost.exchangeRate);
   const [ship, setShip] = useState(product.cost.internationalShippingKrw);
 
-  const draftCost: CostInputs = { ...product.cost, productCostCny: cny, exchangeRate: rate, internationalShippingKrw: ship };
+  const draftCost: CostInputs = { ...product.cost, sourcePrice: cny, exchangeRate: rate, internationalShippingKrw: ship };
   const sim = computeProfit(selling, draftCost, { customsThresholdKrw: product.customsThresholdKrw, dutyRatePct: product.dutyRatePct });
 
   const changed =
     selling !== product.sellingPriceKrw ||
-    cny !== product.cost.productCostCny ||
+    cny !== product.cost.sourcePrice ||
     rate !== product.cost.exchangeRate ||
     ship !== product.cost.internationalShippingKrw;
 
   const apply = () => {
     if (selling !== product.sellingPriceKrw) updateProduct(product.id, { sellingPriceKrw: selling });
-    if (cny !== product.cost.productCostCny || rate !== product.cost.exchangeRate || ship !== product.cost.internationalShippingKrw) {
+    if (cny !== product.cost.sourcePrice || rate !== product.cost.exchangeRate || ship !== product.cost.internationalShippingKrw) {
       updateCost(product.id, draftCost, "시뮬레이터 적용");
     }
   };
@@ -109,8 +109,8 @@ function Simulator({ product }: { product: Product }) {
       <div className="tiny muted" style={{ marginBottom: 14 }}>값을 바꾸면 예상 손익이 즉시 계산됩니다. "적용"하면 저장돼요.</div>
       <div className="form-grid">
         <Num label="판매가 (원)" v={selling} set={setSelling} />
-        <Num label="1688 상품가 (¥)" v={cny} set={setCny} />
-        <Num label="환율 (원/¥)" v={rate} set={setRate} />
+        <Num label={`소싱 상품가 (${CURRENCY_SYMBOL[product.cost.sourceCurrency]})`} v={cny} set={setCny} />
+        <Num label={`환율 (원/${CURRENCY_SYMBOL[product.cost.sourceCurrency]})`} v={rate} set={setRate} />
         <Num label="국제배송비 (원)" v={ship} set={setShip} />
       </div>
       <div className="kv-grid" style={{ marginTop: 14 }}>
@@ -121,7 +121,7 @@ function Simulator({ product }: { product: Product }) {
       </div>
       <div className="btn-row" style={{ marginTop: 14 }}>
         <button className="btn primary sm" disabled={!changed} onClick={apply}>적용 (저장)</button>
-        <button className="btn sm" disabled={!changed} onClick={() => { setSelling(product.sellingPriceKrw); setCny(product.cost.productCostCny); setRate(product.cost.exchangeRate); setShip(product.cost.internationalShippingKrw); }}>되돌리기</button>
+        <button className="btn sm" disabled={!changed} onClick={() => { setSelling(product.sellingPriceKrw); setCny(product.cost.sourcePrice); setRate(product.cost.exchangeRate); setShip(product.cost.internationalShippingKrw); }}>되돌리기</button>
       </div>
     </div>
   );

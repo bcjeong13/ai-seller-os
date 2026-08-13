@@ -1,9 +1,10 @@
 // 기본값 팩토리 — 초보자가 최소 입력만 해도 동작하도록 합리적 기본값 제공.
 
-import type { CostInputs, Product, Marketplace } from "./types";
+import type { CostInputs, Product, Marketplace, Currency } from "./types";
 
 export const DEFAULT_COST: CostInputs = {
-  productCostCny: 0,
+  sourceCurrency: "CNY",
+  sourcePrice: 0,
   exchangeRate: 190, // 원/위안 (예시 기본값, 사용자가 수정)
   internationalShippingKrw: 2000,
   paymentFeePct: 2,
@@ -34,24 +35,33 @@ export interface NewProductInput {
   sourceUrl?: string;
   marketplace: Marketplace;
   sellingPriceKrw: number;
-  productCostCny: number;
+  sourceCurrency?: Currency;
+  sourcePrice: number;
   exchangeRate?: number;
   internationalShippingKrw?: number;
   minMarginPct?: number;
   minProfitKrw?: number;
 }
 
+/** KRW면 환율 1 고정, 아니면 주어진 환율(없으면 기본값) */
+function resolveRate(currency: Currency, given?: number): number {
+  if (currency === "KRW") return 1;
+  return given ?? DEFAULT_COST.exchangeRate;
+}
+
 export function makeProduct(input: NewProductInput): Product {
   const now = Date.now();
+  const currency = input.sourceCurrency ?? "CNY";
   const cost: CostInputs = {
     ...DEFAULT_COST,
-    productCostCny: input.productCostCny,
-    exchangeRate: input.exchangeRate ?? DEFAULT_COST.exchangeRate,
+    sourceCurrency: currency,
+    sourcePrice: input.sourcePrice,
+    exchangeRate: resolveRate(currency, input.exchangeRate),
     internationalShippingKrw:
       input.internationalShippingKrw ?? DEFAULT_COST.internationalShippingKrw,
     platformFeePct: MARKET_FEE_DEFAULT[input.marketplace],
   };
-  const productPriceKrw = Math.round(cost.productCostCny * cost.exchangeRate);
+  const productPriceKrw = Math.round(cost.sourcePrice * cost.exchangeRate);
   return {
     id: newId(),
     name: input.name,
@@ -73,7 +83,8 @@ export function makeProduct(input: NewProductInput): Product {
     costHistory: [
       {
         at: now,
-        productCostCny: cost.productCostCny,
+        sourcePrice: cost.sourcePrice,
+        sourceCurrency: cost.sourceCurrency,
         exchangeRate: cost.exchangeRate,
         internationalShippingKrw: cost.internationalShippingKrw,
         productPriceKrw,

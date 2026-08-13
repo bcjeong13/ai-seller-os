@@ -12,7 +12,7 @@ import { deriveStatus } from "../domain/status";
 import { detectAnomaly } from "../domain/anomaly";
 import { newId } from "../domain/factory";
 
-const KEY = "ai-seller-os-v1";
+const KEY = "ai-seller-os-v2";
 
 interface AppState {
   products: Product[];
@@ -91,8 +91,8 @@ export function updateProduct(id: string, patch: Partial<Product>) {
 export function updateCost(id: string, newCost: CostInputs, note = "원가 갱신") {
   mutateProduct(id, (p) => {
     const now = Date.now();
-    const oldPrice = Math.round(p.cost.productCostCny * p.cost.exchangeRate);
-    const newPrice = Math.round(newCost.productCostCny * newCost.exchangeRate);
+    const oldPrice = Math.round(p.cost.sourcePrice * p.cost.exchangeRate);
+    const newPrice = Math.round(newCost.sourcePrice * newCost.exchangeRate);
     const anomaly = detectAnomaly(oldPrice, newPrice);
 
     const events = [...p.events];
@@ -114,7 +114,8 @@ export function updateCost(id: string, newCost: CostInputs, note = "원가 갱�
         ...p.costHistory,
         {
           at: now,
-          productCostCny: newCost.productCostCny,
+          sourcePrice: newCost.sourcePrice,
+          sourceCurrency: newCost.sourceCurrency,
           exchangeRate: newCost.exchangeRate,
           internationalShippingKrw: newCost.internationalShippingKrw,
           productPriceKrw: newPrice,

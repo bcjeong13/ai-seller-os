@@ -1,4 +1,16 @@
-import type { ProductStatus, PreflightStatus, SupplierStock } from "../domain/types";
+import type { ProductStatus, PreflightStatus, SupplierStock, Currency } from "../domain/types";
+
+export const CURRENCY_SYMBOL: Record<Currency, string> = {
+  KRW: "₩",
+  CNY: "¥",
+  USD: "$",
+};
+
+export const CURRENCY_LABEL: Record<Currency, string> = {
+  KRW: "원화 (₩)",
+  CNY: "위안 (¥)",
+  USD: "달러 ($)",
+};
 
 interface Meta { label: string; color: string; bg: string; }
 

@@ -60,12 +60,12 @@ export function orderPreflightCheck(
   // --- 13개 확인 항목 ---
   const checks: PreflightCheckItem[] = [
     { no: 1, label: "공급처 상품 존재", value: product.status === "DISCONTINUED" ? "단종" : "존재", ok: product.status !== "DISCONTINUED" },
-    { no: 2, label: "공급처 상품 가격", value: known(c.productCostCny) ? `¥${c.productCostCny}` : "불명", ok: known(c.productCostCny) },
+    { no: 2, label: "공급처 상품 가격", value: known(c.sourcePrice) ? `${c.sourcePrice} ${c.sourceCurrency}` : "불명", ok: known(c.sourcePrice) },
     { no: 3, label: "옵션 가격", value: "단일/대표옵션 기준", ok: true },
     { no: 4, label: "공급처 재고", value: supplierStockLabel(product.supplierStock), ok: product.supplierStock === "IN_STOCK" || product.supplierStock === "LOW_STOCK" },
     { no: 5, label: "판매 가능 여부", value: product.legalBlock ? "차단" : "가능", ok: !product.legalBlock },
     { no: 6, label: "국제배송비", value: known(c.internationalShippingKrw) ? `${c.internationalShippingKrw}원` : "불명", ok: known(c.internationalShippingKrw) },
-    { no: 7, label: "환율", value: known(c.exchangeRate) ? `${c.exchangeRate}원/¥` : "불명", ok: known(c.exchangeRate) },
+    { no: 7, label: "환율", value: c.sourceCurrency === "KRW" ? "원화(불필요)" : known(c.exchangeRate) ? `${c.exchangeRate}원/${c.sourceCurrency}` : "불명", ok: known(c.exchangeRate) },
     { no: 8, label: "결제/송금 비용", value: `${c.paymentFeePct}%`, ok: known(c.paymentFeePct) },
     { no: 9, label: "플랫폼 수수료", value: `${c.platformFeePct}%`, ok: known(c.platformFeePct) },
     { no: 10, label: "반품/CS 비용", value: `${c.returnCostKrw + c.csCostKrw}원`, ok: true },

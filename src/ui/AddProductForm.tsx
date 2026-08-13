@@ -3,29 +3,50 @@ import { makeProduct, type NewProductInput } from "../domain/factory";
 import { computeProfit, recommendSellingPrice } from "../domain/profitEngine";
 import { addProduct } from "../store/db";
 import { formatKrw, formatPct } from "../domain/money";
-import type { Marketplace } from "../domain/types";
+import type { Marketplace, Currency } from "../domain/types";
+import { CURRENCY_LABEL, CURRENCY_SYMBOL } from "./meta";
 
 type PriceMode = "target" | "manual";
+
+/** 시장환율 참고 조회 (프랑크푸르터 무료 API). 실패 시 null. */
+async function fetchMarketRate(from: Currency): Promise<number | null> {
+  if (from === "KRW") return 1;
+  try {
+    const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=KRW`);
+    const data = await res.json();
+    return typeof data?.rates?.KRW === "number" ? data.rates.KRW : null;
+  } catch {
+    return null;
+  }
+}
 
 export function AddProductForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [market, setMarket] = useState<Marketplace>("NAVER");
+
+  const [currency, setCurrency] = useState<Currency>("CNY");
+  const [srcPrice, setSrcPrice] = useState(22);
+  const [rate, setRate] = useState(190);
+  const [fxNote, setFxNote] = useState<string>("");
+  const [fxLoading, setFxLoading] = useState(false);
+
   const [mode, setMode] = useState<PriceMode>("target");
   const [targetMargin, setTargetMargin] = useState(30);
   const [selling, setSelling] = useState(12900);
-  const [cny, setCny] = useState(22);
-  const [rate, setRate] = useState(190);
   const [ship, setShip] = useState(1800);
   const [minMargin, setMinMargin] = useState(15);
+
+  const effectiveRate = currency === "KRW" ? 1 : Number(rate) || 0;
 
   const baseInput: NewProductInput = {
     name: name || "새 상품",
     sourceUrl: url,
     marketplace: market,
     sellingPriceKrw: 0,
-    productCostCny: Number(cny) || 0,
-    exchangeRate: Number(rate) || 0,
+    sourceCurrency: currency,
+    sourcePrice: Number(srcPrice) || 0,
+    exchangeRate: effectiveRate,
     internationalShippingKrw: Number(ship) || 0,
     minMarginPct: Number(minMargin) || 0,
   };
@@ -39,6 +60,27 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
     dutyRatePct: base.dutyRatePct,
   });
 
+  const changeCurrency = (c: Currency) => {
+    setCurrency(c);
+    setFxNote("");
+    if (c === "KRW") setRate(1);
+    else if (c === "CNY") setRate(190);
+    else setRate(1350);
+  };
+
+  const autoRate = async () => {
+    setFxLoading(true);
+    setFxNote("");
+    const r = await fetchMarketRate(currency);
+    setFxLoading(false);
+    if (r) {
+      setRate(Math.round(r * 100) / 100);
+      setFxNote("시장환율(참고용). 실제 결제는 카드 해외수수료가 더 붙어요 → 아래 결제수수료로 반영됩니다.");
+    } else {
+      setFxNote("자동 조회 실패 — 환율을 직접 입력해 주세요.");
+    }
+  };
+
   const submit = () => {
     if (!name.trim()) { alert("상품명을 입력해 주세요."); return; }
     if (effectiveSelling <= 0) { alert("판매가를 확인해 주세요."); return; }
@@ -50,7 +92,7 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
     <div>
       <div className="section-title">상품 추가</div>
       <div className="pill-info" style={{ marginBottom: 16 }}>
-        1688 원가만 넣으면 됩니다. 판매가를 모르면 <b>"목표 마진으로 자동 계산"</b>을 쓰세요 —
+        소싱 원가만 넣으면 됩니다. 판매가를 모르면 <b>"목표 마진으로 자동 계산"</b>을 쓰세요 —
         검색 없이 원가·수수료·배송비를 역산해 <b>권장 판매가</b>를 알려줍니다.
       </div>
 
@@ -61,8 +103,8 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 차량용 무선 핸드폰 거치대" />
           </div>
           <div className="field full">
-            <label>1688 상품 URL <span className="hint">(선택)</span></label>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://detail.1688.com/offer/..." />
+            <label>소싱 상품 URL <span className="hint">(선택 — 1688 / 알리익스프레스 등)</span></label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
           </div>
           <div className="field">
             <label>판매 마켓</label>
@@ -75,16 +117,42 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
             </select>
           </div>
           <div className="field">
-            <label>1688 상품가 (위안 ¥)</label>
-            <input type="number" value={cny} onChange={(e) => setCny(+e.target.value)} />
+            <label>소싱처 통화</label>
+            <select value={currency} onChange={(e) => changeCurrency(e.target.value as Currency)}>
+              <option value="CNY">{CURRENCY_LABEL.CNY} · 1688/타오바오</option>
+              <option value="KRW">{CURRENCY_LABEL.KRW} · 알리(원화 표시)</option>
+              <option value="USD">{CURRENCY_LABEL.USD} · 아마존/알리($)</option>
+            </select>
           </div>
+
           <div className="field">
-            <label>환율 (원/위안)</label>
-            <input type="number" value={rate} onChange={(e) => setRate(+e.target.value)} />
+            <label>소싱 상품가 ({CURRENCY_SYMBOL[currency]})</label>
+            <input type="number" value={srcPrice} onChange={(e) => setSrcPrice(+e.target.value)} />
+            <span className="hint">⚠️ 알리 "신규회원/할인 전용가"는 1회성입니다. 반드시 <b>정상가</b>로 입력하세요.</span>
           </div>
+
+          {currency === "KRW" ? (
+            <div className="field">
+              <label>환율</label>
+              <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f4f5f8", color: "var(--muted)" }}>
+                원화라 환율 불필요 (그대로 사용)
+              </div>
+            </div>
+          ) : (
+            <div className="field">
+              <label>환율 (원/{CURRENCY_SYMBOL[currency]})</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type="number" value={rate} onChange={(e) => setRate(+e.target.value)} style={{ flex: 1 }} />
+                <button className="btn sm" onClick={autoRate} disabled={fxLoading}>{fxLoading ? "조회중…" : "자동"}</button>
+              </div>
+              {fxNote && <span className="hint">{fxNote}</span>}
+            </div>
+          )}
+
           <div className="field">
             <label>국제배송비 (원)</label>
             <input type="number" value={ship} onChange={(e) => setShip(+e.target.value)} />
+            <span className="hint">"무료 배송"이면 0. 사이트 표시 배송비를 입력.</span>
           </div>
         </div>
       </div>

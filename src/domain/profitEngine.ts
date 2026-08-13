@@ -12,7 +12,7 @@ export function computeProfit(
   cost: CostInputs,
   opts: { customsThresholdKrw: number; dutyRatePct: number }
 ): ProfitResult {
-  const productPriceKrw = won(cost.productCostCny * cost.exchangeRate);
+  const productPriceKrw = won(cost.sourcePrice * cost.exchangeRate);
 
   // 해외 결제/송금 수수료 = (물품가 + 국제배송비) × %
   const paymentFeeKrw = pct(
@@ -85,7 +85,7 @@ export function recommendSellingPrice(
   cost: CostInputs,
   targetMarginPct: number
 ): number {
-  const productPriceKrw = won(cost.productCostCny * cost.exchangeRate);
+  const productPriceKrw = won(cost.sourcePrice * cost.exchangeRate);
   const paymentFeeKrw = pct(
     productPriceKrw + cost.internationalShippingKrw,
     cost.paymentFeePct

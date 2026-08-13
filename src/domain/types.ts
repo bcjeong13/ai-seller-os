@@ -6,6 +6,9 @@
 /** 판매 마켓 */
 export type Marketplace = "NAVER" | "COUPANG" | "11ST" | "GMARKET" | "OTHER";
 
+/** 소싱처 통화 */
+export type Currency = "KRW" | "CNY" | "USD";
+
 /** 상품 상태 (프롬프트 §6/§34) */
 export type ProductStatus =
   | "DISCOVERED"
@@ -46,9 +49,11 @@ export type PreflightStatus =
 
 /** 원가 구성요소 — 각각 독립 감시(프롬프트 §5) */
 export interface CostInputs {
-  /** 1688 상품가 (위안) */
-  productCostCny: number;
-  /** 환율 (원/위안) */
+  /** 소싱처 통화 (KRW/CNY/USD) */
+  sourceCurrency: Currency;
+  /** 소싱처 표기 상품가 (해당 통화 기준) */
+  sourcePrice: number;
+  /** 환율 (원/소싱통화 1단위). KRW면 1. */
   exchangeRate: number;
   /** 국제배송비 (원) — 면세 판정 시 물품가격과 분리 */
   internationalShippingKrw: number;
@@ -69,7 +74,8 @@ export interface CostInputs {
 /** 원가 변동 이력 1건 */
 export interface CostHistoryEntry {
   at: number; // ms timestamp
-  productCostCny: number;
+  sourcePrice: number;
+  sourceCurrency: Currency;
   exchangeRate: number;
   internationalShippingKrw: number;
   productPriceKrw: number; // 파생: 물품가 원화
@@ -145,7 +151,7 @@ export interface CustomsResult {
 /** 손익 계산 결과 (100% 결정론적) */
 export interface ProfitResult {
   sellingPriceKrw: number;
-  /** 물품가 원화 (= productCostCny × exchangeRate) */
+  /** 물품가 원화 (= sourcePrice × exchangeRate) */
   productPriceKrw: number;
   /** 해외 결제/송금 수수료(원) */
   paymentFeeKrw: number;

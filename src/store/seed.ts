@@ -14,7 +14,7 @@ export function demoProducts(): Product[] {
     name: "차량용 무선 핸드폰 거치대",
     marketplace: "NAVER",
     sellingPriceKrw: 12900,
-    productCostCny: 22,
+    sourcePrice: 22,
     exchangeRate: 190,
     internationalShippingKrw: 1800,
     minMarginPct: 15,
@@ -26,16 +26,17 @@ export function demoProducts(): Product[] {
     name: "캠핑 접이식 미니 테이블",
     marketplace: "COUPANG",
     sellingPriceKrw: 15900,
-    productCostCny: 68, // 급등 반영
+    sourcePrice: 68, // 급등 반영
     exchangeRate: 195,
     internationalShippingKrw: 3500,
     minMarginPct: 15,
   });
   p2.sourceUrl = "https://detail.1688.com/offer/DEMO002.html";
-  p2.baselineCost = { ...p2.baselineCost, productCostCny: 45 };
+  p2.baselineCost = { ...p2.baselineCost, sourcePrice: 45 };
   p2.costHistory.unshift({
     at: Date.now() - 48 * HOUR,
-    productCostCny: 45,
+    sourcePrice: 45,
+    sourceCurrency: "CNY",
     exchangeRate: 195,
     internationalShippingKrw: 3500,
     productPriceKrw: Math.round(45 * 195),
@@ -48,7 +49,7 @@ export function demoProducts(): Product[] {
     name: "강아지 실리콘 급식기 매트",
     marketplace: "NAVER",
     sellingPriceKrw: 9900,
-    productCostCny: 15,
+    sourcePrice: 15,
     exchangeRate: 190,
     internationalShippingKrw: 1500,
     minMarginPct: 15,
@@ -60,7 +61,7 @@ export function demoProducts(): Product[] {
     name: "대형 캠핑 카고 수납박스 (특대)",
     marketplace: "NAVER",
     sellingPriceKrw: 289000,
-    productCostCny: 1150, // ≈ 21.8만원 > 20만원
+    sourcePrice: 1150, // ≈ 21.8만원 > 20만원
     exchangeRate: 190,
     internationalShippingKrw: 12000,
     minMarginPct: 15,
@@ -71,7 +72,7 @@ export function demoProducts(): Product[] {
     name: "USB 미니 가습기",
     marketplace: "COUPANG",
     sellingPriceKrw: 11900,
-    productCostCny: 19,
+    sourcePrice: 19,
     exchangeRate: 190,
     internationalShippingKrw: 1600,
     minMarginPct: 15,
