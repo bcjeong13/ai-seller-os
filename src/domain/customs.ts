@@ -14,6 +14,20 @@ export function computeCustoms(
   dutyRatePct: number
 ): CustomsResult {
   const productPriceKrw = won(cost.sourcePrice * cost.exchangeRate);
+
+  // 국내 소싱(원화)은 수입이 아니므로 관부가세 없음
+  if (cost.sourceCurrency === "KRW") {
+    return {
+      overThreshold: false,
+      productPriceKrw,
+      thresholdKrw,
+      estimatedDutyKrw: 0,
+      estimatedVatKrw: 0,
+      customerTaxBurdenKrw: 0,
+      note: "국내 소싱 — 관부가세 없음.",
+    };
+  }
+
   const overThreshold = productPriceKrw > thresholdKrw;
 
   if (!overThreshold) {

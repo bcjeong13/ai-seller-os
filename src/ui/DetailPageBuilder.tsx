@@ -82,9 +82,11 @@ export function DetailPageBuilder({
   const [qualityGuarantee, setQualityGuarantee] = useState(d?.qualityGuarantee ?? true);
   const [gift, setGift] = useState(d?.gift ?? "");
 
-  const [dMin, setDMin] = useState(d?.deliveryMinDays ?? 7);
-  const [dMax, setDMax] = useState(d?.deliveryMaxDays ?? 14);
-  const [overseas, setOverseas] = useState(d?.isOverseasAgent ?? true);
+  // 국내 위탁이 기본. 소싱 통화가 원화면 국내로 간주.
+  const isDomestic = (product?.cost.sourceCurrency ?? "KRW") === "KRW";
+  const [dMin, setDMin] = useState(d?.deliveryMinDays ?? (isDomestic ? 1 : 7));
+  const [dMax, setDMax] = useState(d?.deliveryMaxDays ?? (isDomestic ? 3 : 14));
+  const [overseas, setOverseas] = useState(d?.isOverseasAgent ?? !isDomestic);
 
   const [pasteText, setPasteText] = useState("");
   const [pasteMsg, setPasteMsg] = useState("");

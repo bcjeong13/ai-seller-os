@@ -100,24 +100,28 @@ describe("이상 가격 감지 (§25)", () => {
 });
 
 describe("관부가세 ($150 물품가격 기준, §3)", () => {
-  it("면세 구간(18만원) → 관부가세 0", () => {
-    const r = computeCustoms(cost({ sourcePrice: 180000 }), 200000, 8);
+  it("면세 구간(18만원, 해외) → 관부가세 0", () => {
+    const r = computeCustoms(cost({ sourceCurrency: "CNY", sourcePrice: 180000 }), 200000, 8);
     expect(r.overThreshold).toBe(false);
     expect(r.customerTaxBurdenKrw).toBe(0);
   });
-  it("초과(21만원) → 관세·부가세 발생, 고객 부담", () => {
-    const r = computeCustoms(cost({ sourcePrice: 210000 }), 200000, 8);
+  it("초과(21만원, 해외) → 관세·부가세 발생, 고객 부담", () => {
+    const r = computeCustoms(cost({ sourceCurrency: "CNY", sourcePrice: 210000 }), 200000, 8);
     expect(r.overThreshold).toBe(true);
     expect(r.estimatedDutyKrw).toBe(16800); // 210000 × 8%
     expect(r.estimatedVatKrw).toBe(22680); // (210000+16800) × 10%
   });
   it("면세 판정은 물품가격 기준(운송비 제외)", () => {
-    // 물품가 19만 + 배송비 3만 = 22만이지만, 물품가 기준 19만 → 면세
     const r = computeCustoms(
-      cost({ sourcePrice: 190000, internationalShippingKrw: 30000 }),
+      cost({ sourceCurrency: "CNY", sourcePrice: 190000, internationalShippingKrw: 30000 }),
       200000,
       8
     );
     expect(r.overThreshold).toBe(false);
+  });
+  it("국내 소싱(원화)은 금액과 무관하게 관부가세 없음", () => {
+    const r = computeCustoms(cost({ sourceCurrency: "KRW", sourcePrice: 500000 }), 200000, 8);
+    expect(r.overThreshold).toBe(false);
+    expect(r.customerTaxBurdenKrw).toBe(0);
   });
 });

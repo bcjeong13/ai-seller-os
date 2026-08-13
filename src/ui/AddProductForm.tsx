@@ -26,9 +26,9 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
   const [url, setUrl] = useState("");
   const [market, setMarket] = useState<Marketplace>("NAVER");
 
-  const [currency, setCurrency] = useState<Currency>("CNY");
-  const [srcPrice, setSrcPrice] = useState(22);
-  const [rate, setRate] = useState(190);
+  const [currency, setCurrency] = useState<Currency>("KRW");
+  const [srcPrice, setSrcPrice] = useState(8000);
+  const [rate, setRate] = useState(1);
   const [fxNote, setFxNote] = useState<string>("");
   const [fxLoading, setFxLoading] = useState(false);
 
@@ -112,7 +112,9 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
         category: "", target: "", features: impFeatures, options: impOptions,
         freeShipping: ship === 0, returnEnabled: true, returnDays: 30, freeReturn: false,
         exchange: true, qualityGuarantee: true, gift: "",
-        deliveryMinDays: 7, deliveryMaxDays: 14, isOverseasAgent: true, updatedAt: Date.now(),
+        deliveryMinDays: currency === "KRW" ? 1 : 7,
+        deliveryMaxDays: currency === "KRW" ? 3 : 14,
+        isOverseasAgent: currency !== "KRW", updatedAt: Date.now(),
       };
       saveDetailDraft(p.id, draft);
     }
@@ -163,8 +165,8 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
           <div className="field">
             <label>소싱처 통화</label>
             <select value={currency} onChange={(e) => changeCurrency(e.target.value as Currency)}>
+              <option value="KRW">{CURRENCY_LABEL.KRW} · 국내 위탁/도매</option>
               <option value="CNY">{CURRENCY_LABEL.CNY} · 1688/타오바오</option>
-              <option value="KRW">{CURRENCY_LABEL.KRW} · 알리(원화 표시)</option>
               <option value="USD">{CURRENCY_LABEL.USD} · 아마존/알리($)</option>
             </select>
           </div>
@@ -194,9 +196,9 @@ export function AddProductForm({ onDone }: { onDone: () => void }) {
           )}
 
           <div className="field">
-            <label>국제배송비 (원)</label>
+            <label>배송비 (원)</label>
             <input type="number" value={ship} onChange={(e) => setShip(+e.target.value)} />
-            <span className="hint">"무료 배송"이면 0. 사이트 표시 배송비를 입력.</span>
+            <span className="hint">{currency === "KRW" ? "국내 택배비(공급처 부과분). 무료면 0." : "국제배송비. 무료 배송이면 0."}</span>
           </div>
         </div>
       </div>
