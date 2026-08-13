@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { CostInputs } from "../types";
-import { computeProfit } from "../profitEngine";
+import { computeProfit, recommendSellingPrice } from "../profitEngine";
 import { detectAnomaly } from "../anomaly";
 import { computeCustoms } from "../customs";
 
@@ -61,6 +61,28 @@ describe("손익 계산 엔진 (결정론적)", () => {
     const r = computeProfit(7000, cost({ internationalShippingKrw: 500 }), OPTS);
     // 7000 - (5000 + 500 + 0) = 1500
     expect(r.agencyFeeKrw).toBe(1500);
+  });
+});
+
+describe("권장 판매가 계산 (§19, 검색 불필요)", () => {
+  it("목표 마진 30% → 그 마진 이상을 보장하는 판매가 반환", () => {
+    const c = cost({ platformFeePct: 10, internationalShippingKrw: 1000 });
+    const price = recommendSellingPrice(c, 30);
+    const r = computeProfit(price, c, OPTS);
+    // 100원 올림이므로 목표 이상, 근접
+    expect(r.marginPct).toBeGreaterThanOrEqual(30);
+    expect(r.marginPct).toBeLessThan(31);
+  });
+
+  it("목표 마진이 수수료 대비 과도하면 계산 불가(Infinity)", () => {
+    // 수수료 합 95% + 목표 10% → 불가능
+    const c = cost({ platformFeePct: 95, domesticPaymentFeePct: 0 });
+    expect(recommendSellingPrice(c, 10)).toBe(Infinity);
+  });
+
+  it("100원 단위로 반환", () => {
+    const price = recommendSellingPrice(cost({ platformFeePct: 10 }), 25);
+    expect(price % 100).toBe(0);
   });
 });
 

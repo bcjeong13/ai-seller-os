@@ -38,18 +38,9 @@ export function computeProfit(
   const marginPct =
     sellingPriceKrw > 0 ? (netProfitKrw / sellingPriceKrw) * 100 : 0;
 
-  // 손익분기 판매가: netProfit = 0 지점.
-  // 고정비 / (1 - 판매가비례수수료%)
-  const fixedCost =
-    productPriceKrw +
-    cost.internationalShippingKrw +
-    paymentFeeKrw +
-    cost.returnCostKrw +
-    cost.csCostKrw +
-    cost.adCostKrw;
   const variablePct = cost.platformFeePct + cost.domesticPaymentFeePct;
   const breakEvenPriceKrw =
-    variablePct < 100 ? won(fixedCost / (1 - variablePct / 100)) : Infinity;
+    variablePct < 100 ? won(fixedCostOf(cost, productPriceKrw, paymentFeeKrw) / (1 - variablePct / 100)) : Infinity;
 
   // 구매대행 수수료(부가세 과세표준 후보) = 판매가 − 실제 해외구매비용
   const agencyFeeKrw = won(
@@ -71,4 +62,38 @@ export function computeProfit(
     agencyFeeKrw,
     customs,
   };
+}
+
+/** 판매가에 비례하지 않는 고정비 합 */
+function fixedCostOf(cost: CostInputs, productPriceKrw: number, paymentFeeKrw: number): number {
+  return (
+    productPriceKrw +
+    cost.internationalShippingKrw +
+    paymentFeeKrw +
+    cost.returnCostKrw +
+    cost.csCostKrw +
+    cost.adCostKrw
+  );
+}
+
+/**
+ * 목표 순이익률(%)을 만족하는 권장 판매가 계산 (프롬프트 §19).
+ * 검색 없이 원가·수수료·배송비만으로 역산.
+ * @returns 권장 판매가(원). 목표 마진이 수수료 대비 과도해 불가능하면 Infinity.
+ */
+export function recommendSellingPrice(
+  cost: CostInputs,
+  targetMarginPct: number
+): number {
+  const productPriceKrw = won(cost.productCostCny * cost.exchangeRate);
+  const paymentFeeKrw = pct(
+    productPriceKrw + cost.internationalShippingKrw,
+    cost.paymentFeePct
+  );
+  const fixed = fixedCostOf(cost, productPriceKrw, paymentFeeKrw);
+  const v = (cost.platformFeePct + cost.domesticPaymentFeePct) / 100;
+  const denom = 1 - v - targetMarginPct / 100;
+  if (denom <= 0) return Infinity; // 목표 마진 + 수수료가 100% 이상 → 불가능
+  // 100원 단위로 올림(목표 마진 이상 보장)
+  return Math.ceil(fixed / denom / 100) * 100;
 }
