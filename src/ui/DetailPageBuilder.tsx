@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Product, Marketplace, DetailDraft } from "../domain/types";
 import { generateDetailPage, parsePastedInfo, type DetailPageInput } from "../domain/detailPage";
+import { parseImportBlock } from "../domain/importer";
 import { useStore, getProducts, saveDetailDraft } from "../store/db";
 import { formatKrw } from "../domain/money";
 import { STATUS_META, Badge } from "./meta";
@@ -116,7 +117,15 @@ export function DetailPageBuilder({
   };
 
   const analyze = () => {
-    const { features, options } = parsePastedInfo(pasteText);
+    // 확장이 만든 ##AISOS## 블록도 그대로 인식
+    let features: string[], options: string[];
+    if (pasteText.includes("##AISOS##")) {
+      const r = parseImportBlock(pasteText);
+      features = r.features; options = r.options;
+      if (r.name && !name.trim()) setName(r.name);
+    } else {
+      ({ features, options } = parsePastedInfo(pasteText));
+    }
     if (features.length === 0 && options.length === 0) {
       setPasteMsg("추출된 항목이 없어요. 옵션은 '색상: 블랙, 화이트' 처럼, 특징은 '· ...' 불릿으로 붙여보세요.");
       return;
