@@ -13,35 +13,76 @@
     </div>
   </div>
 
-  <div class="tip">💡 <b>상품 상세페이지</b>에서 옵션·특징 부분을 <b>마우스로 드래그(선택)</b>한 뒤 이 창을 열면 자동으로 담깁니다.</div>
+  <div class="tip">💡 도매꾹은 <b>공급가·배송비·옵션·스펙·반품정책</b>이 자동으로 채워집니다. 빈 칸만 직접 채우고 <b>복사</b>를 누르세요.</div>
+
+  <details id="watchBox" class="watch">
+    <summary>🛡️ 여러 상품 가격·재고 한 번에 점검</summary>
+    <label>앱에서 복사한 점검 목록 <span class="muted">(##AISOS-WATCH##)</span></label>
+    <textarea id="watchList" rows="3" placeholder="##AISOS-WATCH## 로 시작하는 목록을 붙여넣기"></textarea>
+    <button id="watchRun" class="primary wide">점검 시작</button>
+    <div class="muted tiny" id="watchStatus">탭을 하나씩 열어 가격·재고만 읽고 바로 닫습니다.</div>
+    <textarea id="watchOut" rows="4" style="display:none"></textarea>
+    <button id="watchCopy" class="wide" style="display:none">📋 결과 복사 (앱에 붙여넣기)</button>
+  </details>
+
+  <details id="listBox" class="watch">
+    <summary>🔎 검색 목록에서 후보 한꺼번에 담기</summary>
+    <div class="muted tiny">도매꾹 <b>검색 결과·카테고리 목록</b> 화면에서 누르세요. 상품명·가격·주소만 읽습니다.</div>
+    <button id="listRun" class="primary wide">이 화면의 상품 담기</button>
+    <div class="muted tiny" id="listStatus"></div>
+    <textarea id="listOut" rows="4" style="display:none"></textarea>
+    <button id="listCopy" class="wide" style="display:none">📋 후보 복사 (앱 소싱센터에 붙여넣기)</button>
+  </details>
+
+  <details id="compBox" class="watch">
+    <summary>💰 경쟁상품 가격 담기 (네이버·쿠팡 검색화면)</summary>
+    <div class="muted tiny">검색 결과 화면에서 누르세요. <b>상품명·가격·배송비</b>만 읽습니다.</div>
+    <button id="compRun" class="primary wide">이 화면의 경쟁상품 담기</button>
+    <div class="muted tiny" id="compStatus"></div>
+    <textarea id="compOut" rows="4" style="display:none"></textarea>
+    <button id="compCopy" class="wide" style="display:none">📋 복사 (앱 STEP3에 붙여넣기)</button>
+  </details>
 
   <label>상품명</label>
   <input id="name" type="text" />
 
   <div class="row">
     <div>
-      <label>통화</label>
-      <select id="currency">
-        <option value="KRW">원화 ₩</option>
-        <option value="CNY">위안 ¥</option>
-        <option value="USD">달러 $</option>
-      </select>
-    </div>
-    <div>
-      <label>상품가</label>
+      <label>공급가(원)</label>
       <input id="price" type="number" />
     </div>
     <div>
       <label>배송비(원)</label>
-      <input id="shipping" type="number" value="0" />
+      <input id="shipping" type="number" value="2500" />
     </div>
   </div>
 
-  <label>옵션·특징 <span class="muted">(드래그 선택한 내용 / 직접 수정)</span></label>
-  <textarea id="raw" rows="5" placeholder="색상: 블랙, 화이트&#10;재질: ...&#10;· 특징..."></textarea>
+  <label>도매처 / 공급사</label>
+  <input id="supplier" type="text" placeholder="예: 도매꾹 · 한성유통" />
+
+  <label>옵션·스펙 <span class="muted">(자동 수집 / 직접 수정 가능)</span></label>
+  <textarea id="raw" rows="5" placeholder="옵션: 블랙, 화이트 (+500원)&#10;소재: ...&#10;· 특징..."></textarea>
+
+  <label>도매처 반품/교환 정책 <span class="muted">(고객 정책 아님 — 앱에서 승인 필요)</span></label>
+  <textarea id="policy" rows="3" placeholder="반품배송비 : 4,000원 ..."></textarea>
 
   <label>URL</label>
   <input id="url" type="text" />
+
+  <div class="imgsec">
+    <div class="imghead">
+      <label style="margin:0">상세 이미지 <span class="muted" id="imgcount">0장</span></label>
+      <div class="imgbtns">
+        <button id="selall" class="mini">전체선택</button>
+        <button id="selnone" class="mini">해제</button>
+      </div>
+    </div>
+    <div class="grid" id="imggrid"></div>
+    <button id="dl" class="primary wide">⬇️ 선택한 이미지 다운로드</button>
+    <div class="muted tiny" id="dlnote">
+      상품명 폴더로 저장됩니다. 공급사 로고·배너가 박힌 이미지는 체크 해제하세요.
+    </div>
+  </div>
 
   <div class="btns">
     <button id="copy" class="primary">📋 복사 (앱에 붙여넣기)</button>

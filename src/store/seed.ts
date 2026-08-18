@@ -1,94 +1,188 @@
-// 데모 상품 — 처음 실행 시 다양한 상태를 바로 보여준다.
+// 데모 데이터 — 처음 실행 시 화면을 바로 확인할 수 있게 한다.
+// ★ 실제 고객 개인정보를 절대 쓰지 않는다 (개발지시서 §7-5).
+//   아래 수취인/연락처/주소는 전부 명백한 가짜 값이다.
 
 import type { Product } from "../domain/types";
-import { makeProduct } from "../domain/factory";
+import type { Order, ShippingInfo } from "../domain/orders";
+import { makeProduct, makeOption, newId } from "../domain/factory";
 import { deriveStatus } from "../domain/status";
 
 const HOUR = 1000 * 60 * 60;
 
-export function demoProducts(): Product[] {
-  const list: Product[] = [];
+export interface SeedData {
+  products: Product[];
+  orders: Order[];
+  shipping: ShippingInfo[];
+}
 
-  // 1) 정상 판매 중 (SAFE)
+export function demoData(): SeedData {
+  const now = Date.now();
+
+  // 1) 정상 — 옵션 3개, 전부 안전
   const p1 = makeProduct({
     name: "차량용 무선 핸드폰 거치대",
+    supplierName: "도매꾹 · 한성유통(예시)",
     marketplace: "NAVER",
-    sellingPriceKrw: 12900,
-    sourcePrice: 22,
-    exchangeRate: 190,
-    internationalShippingKrw: 1800,
+    listPriceKrw: 12900,
+    supplyPriceKrw: 4200,
+    shippingKrw: 2500,
     minMarginPct: 15,
+    imageRightsConfirmed: true,
+    options: [
+      makeOption("블랙", 4200, 0),
+      makeOption("화이트", 4500, 0),
+      makeOption("실버", 4800, 500),
+    ],
   });
-  p1.sourceUrl = "https://detail.1688.com/offer/DEMO001.html";
+  p1.sourceUrl = "https://domeggook.com/DEMO001";
+  p1.status = "SELLING";
+  p1.listings = p1.listings.map((l) =>
+    ["NAVER", "COUPANG", "11ST"].includes(l.marketplace) ? { ...l, listed: true, listedAt: now } : l
+  );
 
-  // 2) 원가 급등으로 손실 (LOSS)
+  // 2) 옵션 중 하나가 역마진 — 옵션별 손익의 핵심 데모
   const p2 = makeProduct({
     name: "캠핑 접이식 미니 테이블",
+    supplierName: "도매꾹 · 아웃도어팩토리(예시)",
     marketplace: "COUPANG",
-    sellingPriceKrw: 15900,
-    sourcePrice: 68, // 급등 반영
-    exchangeRate: 195,
-    internationalShippingKrw: 3500,
+    listPriceKrw: 15900,
+    supplyPriceKrw: 8800,
+    shippingKrw: 3500,
     minMarginPct: 15,
+    imageRightsConfirmed: true,
+    options: [
+      makeOption("소형", 8800, 0),
+      makeOption("중형", 9900, 1000),
+      makeOption("대형", 13500, 2000), // ← 역마진
+    ],
   });
-  p2.sourceUrl = "https://detail.1688.com/offer/DEMO002.html";
-  p2.baselineCost = { ...p2.baselineCost, sourcePrice: 45 };
-  p2.costHistory.unshift({
-    at: Date.now() - 48 * HOUR,
-    sourcePrice: 45,
-    sourceCurrency: "CNY",
-    exchangeRate: 195,
-    internationalShippingKrw: 3500,
-    productPriceKrw: Math.round(45 * 195),
-    note: "등록",
-  });
-  p2.events.unshift({ at: Date.now() - 2 * HOUR, type: "COST_CHANGED", message: "원가 급등: 8,775→13,260원" });
+  p2.sourceUrl = "https://domeggook.com/DEMO002";
+  p2.status = "SELLING";
+  p2.listings = p2.listings.map((l) =>
+    ["COUPANG", "11ST", "GMARKET"].includes(l.marketplace) ? { ...l, listed: true, listedAt: now } : l
+  );
 
-  // 3) 공급처 품절 (OUT_OF_STOCK)
+  // 3) 공급가가 올라 손실 — 발주 차단 데모
   const p3 = makeProduct({
     name: "강아지 실리콘 급식기 매트",
+    supplierName: "도매꾹 · 펫라인(예시)",
     marketplace: "NAVER",
-    sellingPriceKrw: 9900,
-    sourcePrice: 15,
-    exchangeRate: 190,
-    internationalShippingKrw: 1500,
+    listPriceKrw: 9900,
+    supplyPriceKrw: 7800, // 등록 당시 2,850 → 인상됨
+    shippingKrw: 2500,
     minMarginPct: 15,
+    imageRightsConfirmed: true,
   });
-  p3.supplierStock = "OUT_OF_STOCK";
+  p3.baselineCost = { ...p3.baselineCost, supplyPriceKrw: 2850 };
+  p3.costHistory.unshift({
+    at: now - 48 * HOUR,
+    supplyPriceKrw: 2850,
+    shippingKrw: 2500,
+    landedCostKrw: 5350,
+    note: "등록",
+  });
+  p3.events.unshift({ at: now - 2 * HOUR, type: "COST_CHANGED", message: "공급가 인상: 2,850→7,800원" });
+  p3.status = "SELLING";
+  p3.listings = p3.listings.map((l) => (l.marketplace === "NAVER" ? { ...l, listed: true } : l));
 
-  // 4) 관부가세 발생 구간 (>20만원)
+  // 4) 도매처 품절
   const p4 = makeProduct({
-    name: "대형 캠핑 카고 수납박스 (특대)",
-    marketplace: "NAVER",
-    sellingPriceKrw: 289000,
-    sourcePrice: 1150, // ≈ 21.8만원 > 20만원
-    exchangeRate: 190,
-    internationalShippingKrw: 12000,
-    minMarginPct: 15,
-  });
-
-  // 5) 데이터 노후 (30시간 전 수집)
-  const p5 = makeProduct({
     name: "USB 미니 가습기",
+    supplierName: "도매꾹 · 리빙마트(예시)",
     marketplace: "COUPANG",
-    sellingPriceKrw: 11900,
-    sourcePrice: 19,
-    exchangeRate: 190,
-    internationalShippingKrw: 1600,
+    listPriceKrw: 11900,
+    supplyPriceKrw: 3600,
+    shippingKrw: 2500,
     minMarginPct: 15,
   });
-  p5.lastCollectedAt = Date.now() - 30 * HOUR;
+  p4.supplierStock = "OUT_OF_STOCK";
+  p4.status = "SELLING";
+  p4.listings = p4.listings.map((l) => (l.marketplace === "COUPANG" ? { ...l, listed: true } : l));
 
-  p1.channels = ["NAVER", "COUPANG", "11ST"];
-  p2.channels = ["COUPANG", "11ST", "GMARKET"];
-  p3.channels = ["NAVER"];
-  p4.channels = ["COUPANG"];
-  p5.channels = ["COUPANG", "11ST", "GMARKET"];
-  p5.pendingChannels = ["NAVER"]; // 네이버 승인 대기 데모
+  // 5) 아직 등록 안 함 — 등록 대기 데모
+  const p5 = makeProduct({
+    name: "대형 캠핑 카고 수납박스",
+    supplierName: "도매꾹 · 아웃도어팩토리(예시)",
+    marketplace: "NAVER",
+    listPriceKrw: 89000,
+    supplyPriceKrw: 52000,
+    shippingKrw: 9000,
+    minMarginPct: 15,
+  });
+  p5.status = "APPROVED";
+  p5.listings = p5.listings.map((l) => (l.marketplace === "NAVER" ? { ...l, pending: true } : l));
 
-  for (const p of [p1, p2, p3, p4, p5]) {
-    p.status = deriveStatus(p);
-    list.push(p);
-  }
-  return list;
+  // 6) 가격 확인이 오래됨 — 재확인 요구 데모
+  const p6 = makeProduct({
+    name: "실리콘 주방 집게 3종",
+    supplierName: "도매꾹 · 리빙마트(예시)",
+    marketplace: "11ST",
+    listPriceKrw: 8900,
+    supplyPriceKrw: 2900,
+    shippingKrw: 2500,
+    minMarginPct: 15,
+  });
+  p6.lastCollectedAt = now - 40 * HOUR;
+  p6.status = "SELLING";
+  p6.listings = p6.listings.map((l) => (l.marketplace === "11ST" ? { ...l, listed: true } : l));
+
+  const products = [p1, p2, p3, p4, p5, p6];
+  for (const p of products) p.status = deriveStatus(p);
+
+  // ---- 주문 (개인정보는 전부 가짜) ----
+  const orders: Order[] = [];
+  const shipping: ShippingInfo[] = [];
+
+  const mkOrder = (
+    product: Product,
+    optionName: string,
+    qty: number,
+    stage: Order["stage"],
+    fake: { name: string; phone: string; addr: string }
+  ): Order => {
+    const id = newId("o");
+    const opt = product.options.find((o) => o.name === optionName);
+    const list = product.price.listPriceKrw + (opt?.addPriceKrw ?? 0);
+    shipping.push({
+      orderId: id,
+      recipientName: fake.name,
+      phone: fake.phone,
+      address: fake.addr,
+      postalCode: "00000",
+      savedAt: now,
+    });
+    return {
+      id,
+      marketOrderNo: `DEMO${String(orders.length + 1).padStart(6, "0")}`,
+      marketplace: product.marketplace,
+      productId: product.id,
+      productName: product.name,
+      optionName,
+      optionId: opt?.id,
+      quantity: qty,
+      price: { listPriceKrw: list, discountKrw: 0, buyerPaidKrw: list, buyerShippingKrw: 0 },
+      stage,
+      exceptions: [],
+      hasShippingInfo: true,
+      createdAt: now - 3 * HOUR,
+      events: [{ at: now - 3 * HOUR, type: "IMPORTED", message: "주문 가져옴" }],
+    };
+  };
+
+  // 발주 대기 2건 (하나는 정상, 하나는 손실 상품)
+  orders.push(mkOrder(p1, "블랙", 2, "NEW", {
+    name: "테스트고객A", phone: "010-0000-0001", addr: "서울특별시 강남구 테스트로 000",
+  }));
+  orders.push(mkOrder(p3, "", 1, "NEW", {
+    name: "테스트고객B", phone: "010-0000-0002", addr: "경기도 성남시 예시대로 000",
+  }));
+
+  // 송장 입력 대기 1건
+  const o3 = mkOrder(p2, "중형", 1, "ORDERED", {
+    name: "테스트고객C", phone: "010-0000-0003", addr: "부산광역시 해운대구 샘플로 000",
+  });
+  o3.orderedAt = now - 20 * HOUR;
+  orders.push(o3);
+
+  return { products, orders, shipping };
 }

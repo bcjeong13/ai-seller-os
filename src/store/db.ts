@@ -1,22 +1,53 @@
 // ============================================================
-// 로컬 저장소 (localStorage) — 백엔드/DB 설치 불필요
-// 상품·주문·이벤트를 브라우저에 보관. 새로고침해도 유지.
+// 로컬 저장소 (localStorage) — 백엔드 없음
+// ★ 배송정보(개인정보)는 별도 영역에 보관하고 보존기간 후 파기한다 (지시서 §7)
+// ★ 이벤트 로그에 개인정보 원문을 남기지 않는다
 // ============================================================
 
 import { useSyncExternalStore } from "react";
-import type { Product, CostInputs, SupplierStock, DetailDraft } from "../domain/types";
-import type { Order } from "../domain/orders";
-import { buildOrder } from "../domain/orders";
-import { orderPreflightCheck, type PreflightResult } from "../domain/preflight";
+import type { Product, CostInputs, SupplierStock, DetailDraft, MarketFeeProfile, Marketplace } from "../domain/types";
+import type { Order, ShippingInfo, OrderStage, OrderException, OrderSnapshot } from "../domain/orders";
 import { deriveStatus } from "../domain/status";
 import { detectAnomaly } from "../domain/anomaly";
 import { newId } from "../domain/factory";
+import { defaultFeeProfiles } from "../domain/fees";
+import { isPurgeDue, DEFAULT_RETENTION_DAYS, sanitizeForLog } from "../domain/privacy";
+import type { ParsedOrderRow } from "../domain/orderImport";
+import { dedupeKey, splitDuplicates } from "../domain/orderImport";
+import type { WatchResult } from "../domain/watch";
+import { buildBackup, type BackupFile, type BackupKind } from "../domain/backup";
 
-const KEY = "ai-seller-os-v2";
+// v4: 주문 파이프라인 + 개인정보 분리 + 다차원 수수료
+const KEY = "ai-seller-os-v4";
+
+export interface Settings {
+  /** 배송정보 보존기간(일) — 하드코딩 금지, 사용자가 변경 가능 */
+  retentionDays: number;
+  targetMarginPct: number;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  retentionDays: DEFAULT_RETENTION_DAYS,
+  targetMarginPct: 30,
+};
 
 interface AppState {
   products: Product[];
   orders: Order[];
+  /** 개인정보 — orderId 를 키로 별도 보관 */
+  shippingInfos: Record<string, ShippingInfo>;
+  feeProfiles: MarketFeeProfile[];
+  settings: Settings;
+}
+
+function emptyState(): AppState {
+  return {
+    products: [],
+    orders: [],
+    shippingInfos: {},
+    feeProfiles: defaultFeeProfiles(),
+    settings: { ...DEFAULT_SETTINGS },
+  };
 }
 
 let state: AppState = load();
@@ -25,15 +56,24 @@ const listeners = new Set<() => void>();
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as AppState;
-  } catch {
-    /* ignore */
-  }
-  return { products: [], orders: [] };
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<AppState>;
+      return {
+        ...emptyState(),
+        ...parsed,
+        shippingInfos: parsed.shippingInfos ?? {},
+        feeProfiles: parsed.feeProfiles?.length ? parsed.feeProfiles : defaultFeeProfiles(),
+        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+      };
+    }
+  } catch { /* 손상된 데이터는 무시하고 빈 상태로 시작 */ }
+  return emptyState();
 }
 
 function persist() {
-  localStorage.setItem(KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch { /* 용량 초과 등 — 조용히 실패 */ }
   listeners.forEach((l) => l());
 }
 
@@ -42,7 +82,6 @@ function setState(next: AppState) {
   persist();
 }
 
-// --- 구독 (React) ---
 function subscribe(l: () => void) {
   listeners.add(l);
   return () => listeners.delete(l);
@@ -51,16 +90,42 @@ export function useStore(): AppState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
 
-// --- 조회 ---
+// ------------------------------------------------------------
+// 조회
+// ------------------------------------------------------------
+
 export const getProducts = () => state.products;
 export const getProduct = (id: string) => state.products.find((p) => p.id === id);
 export const getOrders = () => state.orders;
-export const getOrdersFor = (productId: string) =>
-  state.orders.filter((o) => o.productId === productId);
+export const getOrder = (id: string) => state.orders.find((o) => o.id === id);
+export const getOrdersFor = (productId: string) => state.orders.filter((o) => o.productId === productId);
+export const getSettings = () => state.settings;
+export const getFeeProfiles = () => state.feeProfiles;
+export const feeProfileOf = (m: Marketplace) => state.feeProfiles.find((f) => f.marketplace === m);
 
-// --- 상품 ---
+/** 배송정보 조회 — 개인정보. 꼭 필요한 화면에서만 호출한다. */
+export const getShippingInfo = (orderId: string): ShippingInfo | undefined =>
+  state.shippingInfos[orderId];
+
+export function updateSettings(patch: Partial<Settings>) {
+  setState({ ...state, settings: { ...state.settings, ...patch } });
+}
+
+export function updateFeeProfile(profile: MarketFeeProfile) {
+  setState({
+    ...state,
+    feeProfiles: state.feeProfiles.map((f) =>
+      f.marketplace === profile.marketplace ? profile : f
+    ),
+  });
+}
+
+// ------------------------------------------------------------
+// 상품
+// ------------------------------------------------------------
+
 export function addProduct(p: Product) {
-  p.status = deriveStatus(p);
+  p.status = deriveStatus(p, feeProfileOf(p.marketplace));
   setState({ ...state, products: [p, ...state.products] });
 }
 
@@ -69,30 +134,23 @@ export function deleteProduct(id: string) {
 }
 
 function mutateProduct(id: string, fn: (p: Product) => Product) {
-  setState({
-    ...state,
-    products: state.products.map((p) => (p.id === id ? fn(p) : p)),
-  });
+  setState({ ...state, products: state.products.map((p) => (p.id === id ? fn(p) : p)) });
 }
 
-/** 상품 기본 정보/설정 수정 */
 export function updateProduct(id: string, patch: Partial<Product>) {
   mutateProduct(id, (p) => {
     const next = { ...p, ...patch };
-    next.status = deriveStatus(next);
+    next.status = deriveStatus(next, feeProfileOf(next.marketplace));
     return next;
   });
 }
 
-/**
- * 원가 변경 (공급처 재조회) — 이상치 감지 + 이력/이벤트 기록 + 상태 재계산.
- * lastCollectedAt을 현재로 갱신(방금 수집한 데이터).
- */
-export function updateCost(id: string, newCost: CostInputs, note = "원가 갱신") {
+/** 공급처 원가 갱신 — 이상치 감지 + 이력 + 상태 재계산 */
+export function updateCost(id: string, newCost: CostInputs, note = "가격 갱신") {
   mutateProduct(id, (p) => {
     const now = Date.now();
-    const oldPrice = Math.round(p.cost.sourcePrice * p.cost.exchangeRate);
-    const newPrice = Math.round(newCost.sourcePrice * newCost.exchangeRate);
+    const oldPrice = Math.round(p.cost.supplyPriceKrw);
+    const newPrice = Math.round(newCost.supplyPriceKrw);
     const anomaly = detectAnomaly(oldPrice, newPrice);
 
     const events = [...p.events];
@@ -101,8 +159,8 @@ export function updateCost(id: string, newCost: CostInputs, note = "원가 갱�
         at: now,
         type: anomaly.isAnomaly ? "PRICE_ANOMALY" : "COST_CHANGED",
         message: anomaly.isAnomaly
-          ? `이상 가격 감지: ${oldPrice.toLocaleString()}→${newPrice.toLocaleString()}원 (${(anomaly.changeRatio * 100).toFixed(0)}%) — 확인 필요`
-          : `원가 변경: ${oldPrice.toLocaleString()}→${newPrice.toLocaleString()}원`,
+          ? `공급가가 크게 바뀌었습니다: ${oldPrice.toLocaleString()}→${newPrice.toLocaleString()}원 — 확인 필요`
+          : `공급가 변경: ${oldPrice.toLocaleString()}→${newPrice.toLocaleString()}원`,
       });
     }
 
@@ -110,33 +168,24 @@ export function updateCost(id: string, newCost: CostInputs, note = "원가 갱�
       ...p,
       cost: newCost,
       lastCollectedAt: now,
-      costHistory: [
-        ...p.costHistory,
-        {
-          at: now,
-          sourcePrice: newCost.sourcePrice,
-          sourceCurrency: newCost.sourceCurrency,
-          exchangeRate: newCost.exchangeRate,
-          internationalShippingKrw: newCost.internationalShippingKrw,
-          productPriceKrw: newPrice,
-          note,
-        },
-      ],
+      costHistory: [...p.costHistory, {
+        at: now,
+        supplyPriceKrw: newCost.supplyPriceKrw,
+        shippingKrw: newCost.shippingKrw,
+        landedCostKrw: Math.round(newCost.supplyPriceKrw + newCost.shippingKrw),
+        note,
+      }],
       events,
     };
     const oldStatus = p.status;
-    next.status = deriveStatus(next);
+    next.status = deriveStatus(next, feeProfileOf(next.marketplace));
     if (next.status !== oldStatus) {
-      next.events = [
-        { at: now, type: "STATUS_CHANGED", message: `상태 변경: ${oldStatus} → ${next.status}` },
-        ...next.events,
-      ];
+      next.events = [{ at: now, type: "STATUS_CHANGED", message: `상태 변경: ${oldStatus} → ${next.status}` }, ...next.events];
     }
     return next;
   });
 }
 
-/** 상세페이지 초안 저장 (다시 열어 수정 가능) */
 export function saveDetailDraft(id: string, draft: DetailDraft) {
   mutateProduct(id, (p) => ({
     ...p,
@@ -145,65 +194,324 @@ export function saveDetailDraft(id: string, draft: DetailDraft) {
   }));
 }
 
-/** 공급처 재고 상태 변경 */
 export function setSupplierStock(id: string, stock: SupplierStock) {
   mutateProduct(id, (p) => {
     const now = Date.now();
     const next: Product = { ...p, supplierStock: stock, lastCollectedAt: now };
-    next.status = deriveStatus(next);
+    next.status = deriveStatus(next, feeProfileOf(next.marketplace));
+    next.events = [{ at: now, type: "SUPPLIER_STOCK", message: `도매처 재고: ${stock}` }, ...next.events];
+    return next;
+  });
+}
+
+/**
+ * 상시 감시 결과 반영.
+ * ★ 읽지 못한 상품(FAIL)은 lastCollectedAt 을 갱신하지 않는다.
+ *   갱신해버리면 "방금 확인함"이 되어 조용히 정상 처리된다.
+ */
+export function applyWatchResults(results: WatchResult[]): { checked: number; failed: number; changed: number } {
+  let checked = 0, failed = 0, changed = 0;
+  for (const r of results) {
+    const p = getProduct(r.productId);
+    if (!p) continue;
+
+    if (r.supplyPriceKrw === undefined) {
+      failed++;
+      mutateProduct(p.id, (cur) => ({
+        ...cur,
+        events: [{ at: Date.now(), type: "CHECK_FAILED", message: "가격 확인 실패 — 직접 확인 필요" }, ...cur.events],
+      }));
+      continue;
+    }
+
+    checked++;
+    if (r.supplyPriceKrw !== p.cost.supplyPriceKrw) {
+      changed++;
+      updateCost(p.id, { ...p.cost, supplyPriceKrw: r.supplyPriceKrw }, "상시 감시");
+    } else {
+      refreshCollectedAt(p.id);
+    }
+    if (r.stock !== "UNKNOWN" && r.stock !== getProduct(p.id)?.supplierStock) {
+      setSupplierStock(p.id, r.stock);
+    }
+  }
+  return { checked, failed, changed };
+}
+
+export function refreshCollectedAt(id: string) {
+  mutateProduct(id, (p) => ({
+    ...p,
+    lastCollectedAt: Date.now(),
+    events: [{ at: Date.now(), type: "RECHECK", message: "공급처 정보 재확인" }, ...p.events],
+  }));
+}
+
+/** 마켓 등록 상태 변경 */
+export function setListing(productId: string, marketplace: Marketplace, patch: { listed?: boolean; pending?: boolean; marketProductNo?: string }) {
+  mutateProduct(productId, (p) => ({
+    ...p,
+    listings: p.listings.map((l) =>
+      l.marketplace === marketplace
+        ? { ...l, ...patch, listedAt: patch.listed ? Date.now() : l.listedAt }
+        : l
+    ),
+    events: [{ at: Date.now(), type: "LISTING", message: `${marketplace} 등록 상태 변경` }, ...p.events],
+  }));
+}
+
+// ------------------------------------------------------------
+// 주문
+// ------------------------------------------------------------
+
+/** 이미 등록된 주문 키 집합 — 중복 방지용 */
+export function existingOrderKeys(): Set<string> {
+  return new Set(state.orders.map((o) => dedupeKey(o.marketOrderNo, o.optionName)));
+}
+
+export interface ImportOrdersResult {
+  added: number;
+  skipped: number;
+  orders: Order[];
+}
+
+/**
+ * 파싱된 주문 행을 저장한다.
+ * ★ 배송정보는 shippingInfos 로 분리 보관하고, Order 에는 담지 않는다.
+ * ★ 이벤트 로그에 이름·전화·주소를 남기지 않는다.
+ */
+export function importOrders(rows: ParsedOrderRow[], marketplace: Marketplace): ImportOrdersResult {
+  const { fresh, duplicates } = splitDuplicates(rows, existingOrderKeys());
+  const now = Date.now();
+
+  const newOrders: Order[] = [];
+  const newShipping: Record<string, ShippingInfo> = {};
+
+  for (const r of fresh) {
+    const id = newId("o");
+    const matched = matchProduct(r.productName);
+    const hasShipping = !!(r.recipientName || r.phone || r.address);
+
+    if (hasShipping) {
+      newShipping[id] = {
+        orderId: id,
+        recipientName: r.recipientName,
+        phone: r.phone,
+        address: r.address,
+        postalCode: r.postalCode,
+        memo: r.memo,
+        savedAt: now,
+      };
+    }
+
+    newOrders.push({
+      id,
+      marketOrderNo: r.marketOrderNo,
+      marketplace,
+      productId: matched?.id,
+      productName: r.productName,
+      optionName: r.optionName,
+      optionId: matched ? matchOption(matched, r.optionName) : undefined,
+      quantity: r.quantity,
+      price: {
+        listPriceKrw: r.listPriceKrw,
+        discountKrw: r.discountKrw,
+        buyerPaidKrw: r.buyerPaidKrw,
+        buyerShippingKrw: r.buyerShippingKrw,
+      },
+      stage: "NEW",
+      exceptions: [],
+      hasShippingInfo: hasShipping,
+      createdAt: now,
+      // 개인정보 원문을 남기지 않는다
+      events: [{ at: now, type: "IMPORTED", message: sanitizeForLog(`주문 ${r.marketOrderNo} 가져옴`) }],
+    });
+  }
+
+  setState({
+    ...state,
+    orders: [...newOrders, ...state.orders],
+    shippingInfos: { ...state.shippingInfos, ...newShipping },
+  });
+
+  return { added: newOrders.length, skipped: duplicates.length, orders: newOrders };
+}
+
+/** 상품명으로 등록 상품 매칭 (공백 제거 후 포함 관계) */
+function matchProduct(name: string): Product | undefined {
+  const n = name.replace(/\s/g, "");
+  return state.products.find((p) => {
+    const pn = p.name.replace(/\s/g, "");
+    return pn === n || pn.includes(n) || n.includes(pn);
+  });
+}
+
+function matchOption(product: Product, optionName: string): string | undefined {
+  if (!optionName) return undefined;
+  const n = optionName.replace(/\s/g, "");
+  return product.options.find((o) => o.name.replace(/\s/g, "") === n)?.id;
+}
+
+function mutateOrder(id: string, fn: (o: Order) => Order) {
+  setState({ ...state, orders: state.orders.map((o) => (o.id === id ? fn(o) : o)) });
+}
+
+export function setOrderStage(id: string, stage: OrderStage, message?: string) {
+  mutateOrder(id, (o) => {
+    const now = Date.now();
+    const next: Order = { ...o, stage };
+    if (stage === "ORDERED") next.orderedAt = now;
+    if (stage === "SHIPPED") next.shippedAt = now;
+    if (stage === "IN_TRANSIT" && !o.shippedAt) next.shippedAt = now;
+    if (stage === "CONFIRMED") next.deliveredAt = now;
+    if (stage === "SETTLED") next.settledAt = now;
     next.events = [
-      { at: now, type: "SUPPLIER_STOCK", message: `공급처 재고 상태: ${stock}` },
-      ...next.events,
+      { at: now, type: "STAGE", message: sanitizeForLog(message ?? `단계 변경: ${stage}`) },
+      ...o.events,
     ];
     return next;
   });
 }
 
-/** 공급처 데이터 재확인(신선도 갱신) — 크롬확장 재확인을 시뮬레이션 */
-export function refreshCollectedAt(id: string) {
-  mutateProduct(id, (p) => ({
-    ...p,
-    lastCollectedAt: Date.now(),
-    events: [{ at: Date.now(), type: "RECHECK", message: "공급처 데이터 재확인" }, ...p.events],
+export function saveOrderSnapshot(id: string, snapshot: OrderSnapshot) {
+  mutateOrder(id, (o) => ({ ...o, snapshot }));
+}
+
+export function setTracking(id: string, courier: string, trackingNo: string) {
+  mutateOrder(id, (o) => ({
+    ...o,
+    courier,
+    trackingNo,
+    stage: "SHIPPED",
+    shippedAt: Date.now(),
+    events: [{ at: Date.now(), type: "TRACKING", message: "송장번호 입력 완료" }, ...o.events],
   }));
 }
 
-// --- 주문 (PREFLIGHT 경유) ---
-export function runPreflight(productId: string): PreflightResult | null {
-  const p = getProduct(productId);
-  if (!p) return null;
-  return orderPreflightCheck(p, Date.now());
+export function addOrderException(id: string, ex: OrderException, note?: string) {
+  mutateOrder(id, (o) => ({
+    ...o,
+    exceptions: o.exceptions.includes(ex) ? o.exceptions : [...o.exceptions, ex],
+    events: [{ at: Date.now(), type: "EXCEPTION", message: sanitizeForLog(note ?? `문제 발생: ${ex}`) }, ...o.events],
+  }));
 }
 
-/** 주문 생성 — 반드시 PREFLIGHT 통과분에 대해서만. 스냅샷 영구 저장. */
-export function placeOrder(
-  productId: string,
-  quantity: number,
-  preflight: PreflightResult,
-  approved: boolean
-): Order | null {
-  const p = getProduct(productId);
-  if (!p) return null;
-  const order = buildOrder(newId("o"), p, quantity, preflight, approved);
-  mutateProduct(productId, (prod) => ({
-    ...prod,
-    events: [
-      {
-        at: order.createdAt,
-        type: "ORDER",
-        message: `주문 발주 (${preflight.status}${approved ? ", 승인됨" : ""}) — 예상손익 ${order.snapshot.expected_profit_snapshot.toLocaleString()}원`,
-      },
-      ...prod.events,
-    ],
+export function clearOrderException(id: string, ex: OrderException) {
+  mutateOrder(id, (o) => ({
+    ...o,
+    exceptions: o.exceptions.filter((e) => e !== ex),
+    events: [{ at: Date.now(), type: "EXCEPTION", message: `문제 해결: ${ex}` }, ...o.events],
   }));
-  setState({ ...state, orders: [order, ...state.orders] });
-  return order;
+}
+
+export function settleOrder(id: string, actualProfitKrw: number) {
+  mutateOrder(id, (o) => ({
+    ...o,
+    actualProfitKrw,
+    stage: "SETTLED",
+    settledAt: Date.now(),
+    events: [{ at: Date.now(), type: "SETTLED", message: "정산 완료" }, ...o.events],
+  }));
+}
+
+export function deleteOrder(id: string) {
+  const { [id]: _removed, ...rest } = state.shippingInfos;
+  setState({ ...state, orders: state.orders.filter((o) => o.id !== id), shippingInfos: rest });
+}
+
+// ------------------------------------------------------------
+// 개인정보 파기 (지시서 §7-1)
+// 배송정보만 지우고 주문·손익 기록은 유지한다.
+// ------------------------------------------------------------
+
+export interface PurgeResult {
+  purged: number;
+}
+
+export function purgeExpiredShipping(now = Date.now()): PurgeResult {
+  const days = state.settings.retentionDays;
+  const nextShipping = { ...state.shippingInfos };
+  const purgedIds: string[] = [];
+
+  for (const o of state.orders) {
+    if (!nextShipping[o.id]) continue;
+    if (isPurgeDue(o.deliveredAt, now, days)) {
+      delete nextShipping[o.id]; // 실제 데이터 제거
+      purgedIds.push(o.id);
+    }
+  }
+  if (purgedIds.length === 0) return { purged: 0 };
+
+  setState({
+    ...state,
+    shippingInfos: nextShipping,
+    orders: state.orders.map((o) =>
+      purgedIds.includes(o.id)
+        ? {
+            ...o,
+            hasShippingInfo: false,
+            shippingPurgedAt: now,
+            events: [{ at: now, type: "PRIVACY", message: "보존기간 경과로 배송정보 파기" }, ...o.events],
+          }
+        : o
+    ),
+  });
+  return { purged: purgedIds.length };
+}
+
+/** 특정 주문의 배송정보를 즉시 파기 */
+export function purgeShippingNow(orderId: string) {
+  const { [orderId]: _removed, ...rest } = state.shippingInfos;
+  setState({
+    ...state,
+    shippingInfos: rest,
+    orders: state.orders.map((o) =>
+      o.id === orderId
+        ? { ...o, hasShippingInfo: false, shippingPurgedAt: Date.now(),
+            events: [{ at: Date.now(), type: "PRIVACY", message: "배송정보 수동 파기" }, ...o.events] }
+        : o
+    ),
+  });
+}
+
+// ------------------------------------------------------------
+// 백업 / 복원
+// ------------------------------------------------------------
+
+export function exportBackup(kind: BackupKind): BackupFile {
+  return buildBackup(
+    {
+      products: state.products,
+      orders: state.orders,
+      feeProfiles: state.feeProfiles,
+      shippingInfos: Object.values(state.shippingInfos),
+      settings: state.settings as unknown as Record<string, unknown>,
+    },
+    kind,
+    Date.now()
+  );
+}
+
+export function restoreBackup(file: BackupFile) {
+  const shippingInfos: Record<string, ShippingInfo> = {};
+  for (const s of file.shippingInfos ?? []) shippingInfos[s.orderId] = s;
+  setState({
+    products: file.products ?? [],
+    orders: file.orders ?? [],
+    shippingInfos,
+    feeProfiles: file.feeProfiles?.length ? file.feeProfiles : defaultFeeProfiles(),
+    settings: { ...DEFAULT_SETTINGS, ...((file.settings as unknown as Settings) ?? {}) },
+  });
 }
 
 export function resetAll() {
-  setState({ products: [], orders: [] });
+  setState(emptyState());
 }
 
-export function loadSeed(products: Product[]) {
-  setState({ products, orders: [] });
+export function loadSeed(products: Product[], orders: Order[] = [], shipping: ShippingInfo[] = []) {
+  const shippingInfos: Record<string, ShippingInfo> = {};
+  for (const s of shipping) shippingInfos[s.orderId] = s;
+  setState({ ...emptyState(), products, orders, shippingInfos });
 }
+
+// 앱 시작 시 만료된 개인정보를 자동 파기한다
+purgeExpiredShipping();

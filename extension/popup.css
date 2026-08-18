@@ -22,8 +22,39 @@ input, select, textarea {
   font-family: inherit; font-size: 13px; resize: vertical;
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: #4f46e5; }
-.row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.btns { display: flex; gap: 8px; margin-top: 12px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ---- 상세 이미지 수집 ---- */
+.imgsec { margin-top: 14px; border-top: 1px solid #e6e8ee; padding-top: 12px; }
+.imghead { display: flex; align-items: center; justify-content: space-between; }
+.imgbtns { display: flex; gap: 6px; }
+button.mini { flex: none; padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+button.wide { width: 100%; margin-top: 8px; }
+.grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  max-height: 220px; overflow-y: auto; margin-top: 8px;
+}
+.cell {
+  position: relative; aspect-ratio: 1; border: 2px solid #e6e8ee; border-radius: 6px;
+  overflow: hidden; cursor: pointer; background: #f7f8fa;
+}
+.cell.on { border-color: #4f46e5; }
+.cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cell .mark {
+  position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 4px;
+  background: #4f46e5; color: #fff; font-size: 11px; display: grid; place-items: center;
+  opacity: 0; font-weight: 700;
+}
+.cell.on .mark { opacity: 1; }
+.tiny { font-size: 11px; line-height: 1.5; margin-top: 6px; display: block; }
+
+/* 복사 버튼은 항상 아래에 붙여둔다 — 팝업이 길어져도 스크롤 없이 누를 수 있게 */
+.btns {
+  display: flex; gap: 8px; margin-top: 12px;
+  position: sticky; bottom: -14px; z-index: 5;
+  background: #fff; padding: 10px 0 4px;
+  box-shadow: 0 -8px 12px -8px rgba(0, 0, 0, 0.18);
+}
 button {
   flex: 1; padding: 9px; border: 1px solid #e6e8ee; background: #fff; border-radius: 8px;
   font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
@@ -31,3 +62,10 @@ button {
 button.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
 button:hover { opacity: 0.92; }
 .done { text-align: center; font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 8px; min-height: 16px; }
+
+/* 여러 상품 일괄 점검 */
+.watch { border:1px solid #e6e8ee; border-radius:10px; padding:10px 12px; margin-bottom:12px; background:#fbfbfe; }
+.watch summary { cursor:pointer; font-weight:700; font-size:12.5px; color:#4338ca; }
+.watch label { margin-top:8px; }
+.watch button { margin-top:8px; }
+.watch .tiny { margin-top:6px; }

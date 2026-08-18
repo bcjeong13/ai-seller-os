@@ -1,63 +1,95 @@
 import { useState } from "react";
 import { useStore, getProducts, loadSeed, resetAll } from "./store/db";
-import { demoProducts } from "./store/seed";
-import { Dashboard } from "./ui/Dashboard";
-import { ProductList } from "./ui/ProductList";
-import { ProductDetail } from "./ui/ProductDetail";
-import { AddProductForm } from "./ui/AddProductForm";
-import { DetailPageBuilder, DetailPagePicker } from "./ui/DetailPageBuilder";
-import { getProduct } from "./store/db";
+import { demoData } from "./store/seed";
+import { Today, type TodoKey } from "./ui/Today";
+import { TaskList } from "./ui/TaskList";
+import { OrderTask } from "./ui/OrderTask";
+import { OrderImportPanel } from "./ui/OrderImportPanel";
+import { ProductPanel } from "./ui/ProductPanel";
+import { ListingTask } from "./ui/ListingTask";
+import { SettingsPanel } from "./ui/SettingsPanel";
+import { SourcingPanel } from "./ui/SourcingPanel";
+import type { Order } from "./domain/orders";
 
-type View = "dashboard" | "products" | "add" | "detail" | "detailpage";
+type View =
+  | { v: "today" }
+  | { v: "list"; which: TodoKey }
+  | { v: "order"; orderId: string }
+  | { v: "import" }
+  | { v: "products"; id?: string }
+  | { v: "listing"; productId: string }
+  | { v: "sourcing" }
+  | { v: "settings" };
 
 export function App() {
   useStore();
-  const [view, setView] = useState<View>("dashboard");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detailFor, setDetailFor] = useState<string | null>(null);
-  const [detailBlank, setDetailBlank] = useState(false);
+  const [view, setView] = useState<View>({ v: "today" });
+  const [menu, setMenu] = useState(false);
+  const hasData = getProducts().length > 0;
 
-  const open = (id: string) => { setSelected(id); setView("detail"); };
-  const openDetailPage = (id: string | null) => { setDetailFor(id); setDetailBlank(false); setView("detailpage"); };
-  const hasProducts = getProducts().length > 0;
+  const go = (v: View) => { setView(v); setMenu(false); };
 
   return (
     <div className="app">
       <div className="topbar">
-        <div className="logo">A</div>
-        <div className="brand">
+        <button className="menu-btn" onClick={() => setMenu((m) => !m)} aria-label="메뉴">☰</button>
+        <div className="logo" onClick={() => go({ v: "today" })}>A</div>
+        <div className="brand" onClick={() => go({ v: "today" })}>
           <h1>AI Seller OS</h1>
-          <p>무재고 구매대행 · 주문 순간 손실방어</p>
+          <p>국내 위탁판매 · 손실 방지</p>
         </div>
         <div className="spacer" />
-        <div className="btn-row">
-          {!hasProducts && (
-            <button className="btn sm" onClick={() => loadSeed(demoProducts())}>데모 데이터 불러오기</button>
-          )}
-          {hasProducts && (
-            <button className="btn sm" onClick={() => { if (confirm("모든 데이터를 초기화할까요?")) { resetAll(); setView("dashboard"); } }}>초기화</button>
-          )}
-        </div>
+        {!hasData && (
+          <button className="btn sm" onClick={() => { const d = demoData(); loadSeed(d.products, d.orders, d.shipping); }}>
+            데모 데이터
+          </button>
+        )}
       </div>
 
-      <div className="nav">
-        <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>대시보드</button>
-        <button className={view === "products" || view === "detail" ? "active" : ""} onClick={() => setView("products")}>상품</button>
-        <button className={view === "add" ? "active" : ""} onClick={() => setView("add")}>상품 추가</button>
-        <button className={view === "detailpage" ? "active" : ""} onClick={() => openDetailPage(null)}>상세페이지</button>
-      </div>
-
-      {view === "dashboard" && <Dashboard onOpen={open} />}
-      {view === "products" && <ProductList onOpen={open} onAdd={() => setView("add")} />}
-      {view === "add" && <AddProductForm onDone={() => setView("products")} />}
-      {view === "detail" && selected && <ProductDetail id={selected} onBack={() => setView("products")} onMakeDetailPage={() => openDetailPage(selected)} />}
-      {view === "detailpage" && (
-        detailFor
-          ? <DetailPageBuilder product={getProduct(detailFor) ?? undefined} onBack={() => openDetailPage(null)} />
-          : detailBlank
-            ? <DetailPageBuilder onBack={() => openDetailPage(null)} />
-            : <DetailPagePicker onPick={(id) => openDetailPage(id)} onBlank={() => { setDetailBlank(true); }} />
+      {menu && (
+        <>
+          <div className="menu-scrim" onClick={() => setMenu(false)} />
+          <nav className="side">
+            <button onClick={() => go({ v: "today" })}>오늘 할 일</button>
+            <button onClick={() => go({ v: "sourcing" })}>소싱센터</button>
+            <button onClick={() => go({ v: "products" })}>상품</button>
+            <button onClick={() => go({ v: "import" })}>주문 가져오기</button>
+            <button onClick={() => go({ v: "settings" })}>설정</button>
+            <div className="side-sep" />
+            <button className="danger" onClick={() => {
+              if (confirm("모든 데이터를 지웁니다. 계속할까요?")) { resetAll(); go({ v: "today" }); }
+            }}>전체 초기화</button>
+          </nav>
+        </>
       )}
+
+      <main>
+        {view.v === "today" && (
+          <Today onOpen={(which) => go({ v: "list", which })} onImport={() => go({ v: "import" })} />
+        )}
+        {view.v === "list" && (
+          <TaskList
+            which={view.which}
+            onBack={() => go({ v: "today" })}
+            onOpenOrder={(order) => go({ v: "order", orderId: order.id })}
+            onOpenProduct={(p) =>
+              go(view.which === "toList"
+                ? { v: "listing", productId: p.id }
+                : { v: "products", id: p.id })
+            }
+          />
+        )}
+        {view.v === "listing" && (
+          <ListingTask productId={view.productId} onBack={() => go({ v: "today" })} />
+        )}
+        {view.v === "order" && (
+          <OrderTask orderId={view.orderId} onBack={() => go({ v: "today" })} />
+        )}
+        {view.v === "import" && <OrderImportPanel onDone={() => go({ v: "today" })} />}
+        {view.v === "products" && <ProductPanel openId={view.id} onBack={() => go({ v: "today" })} />}
+        {view.v === "sourcing" && <SourcingPanel onBack={() => go({ v: "today" })} />}
+        {view.v === "settings" && <SettingsPanel onBack={() => go({ v: "today" })} />}
+      </main>
     </div>
   );
 }

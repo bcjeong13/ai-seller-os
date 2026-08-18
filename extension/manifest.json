@@ -1,17 +1,24 @@
 {
   "manifest_version": 3,
   "name": "AI Seller OS 수집기",
-  "version": "0.1.0",
-  "description": "알리익스프레스/1688/타오바오 상품 페이지에서 상품명·가격·옵션을 수집해 AI Seller OS로 보냅니다.",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": [
-    "https://*.aliexpress.com/*",
-    "https://*.1688.com/*",
-    "https://*.taobao.com/*",
-    "https://*.tmall.com/*"
-  ],
+  "version": "0.5.0",
+  "description": "국내 도매 사이트(도매꾹 등) 상품 페이지에서 상품명·공급가·배송비·옵션·스펙·반품정책·상세 이미지를 수집해 AI Seller OS로 보냅니다.",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "AI Seller OS로 수집"
+    "default_title": "AI Seller OS로 수집",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }

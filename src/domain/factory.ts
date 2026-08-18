@@ -1,28 +1,27 @@
-// 기본값 팩토리 — 초보자가 최소 입력만 해도 동작하도록 합리적 기본값 제공.
+// 기본값 팩토리 — 최소 입력만으로 동작하도록 합리적 기본값 제공.
+// ※ 수수료 요율은 fees.ts 에서 마켓별 프로필로 관리한다 (여기 하드코딩 금지).
 
-import type { CostInputs, Product, Marketplace, Currency } from "./types";
+import type {
+  CostInputs, Product, Marketplace, PriceBreakdown, ReturnModel,
+  ProductOption, ChannelListing, ProductSpec,
+} from "./types";
+import { ALL_CHANNELS } from "./types";
 
-export const DEFAULT_COST: CostInputs = {
-  sourceCurrency: "CNY",
-  sourcePrice: 0,
-  exchangeRate: 190, // 원/위안 (예시 기본값, 사용자가 수정)
-  internationalShippingKrw: 2000,
-  paymentFeePct: 2,
-  platformFeePct: 5.6, // 네이버 예시
-  domesticPaymentFeePct: 3.4,
-  returnCostKrw: 300,
-  csCostKrw: 200,
-  adCostKrw: 0,
+/** 반품 기본 모델 — 추정치. 운영하며 실측으로 대체된다. */
+export const DEFAULT_RETURN: ReturnModel = {
+  costPerReturnKrw: 4000, // 도매처가 청구하는 반품배송비 — 상품마다 다르므로 반드시 확인
+  exchangeCostKrw: 8000,  // 보통 반품비의 2배
+  ratePct: 2,
+  measured: false,
 };
 
-/** 마켓별 플랫폼 수수료 기본값(예시 — 사용자가 수정 가능) */
-export const MARKET_FEE_DEFAULT: Record<Marketplace, number> = {
-  NAVER: 5.6,
-  COUPANG: 10.8,
-  "11ST": 8,
-  GMARKET: 8,
-  AUCTION: 8,
-  OTHER: 8,
+export const DEFAULT_COST: CostInputs = {
+  supplyPriceKrw: 0,
+  minOrderQty: 1,
+  shippingKrw: 2500,
+  returnModel: { ...DEFAULT_RETURN },
+  csCostKrw: 200,
+  adCostKrw: 0,
 };
 
 let counter = 0;
@@ -31,69 +30,93 @@ export function newId(prefix = "p"): string {
   return `${prefix}_${Date.now().toString(36)}_${counter}`;
 }
 
+export function makePrice(listPriceKrw: number, discountKrw = 0, buyerShippingKrw = 0): PriceBreakdown {
+  return {
+    listPriceKrw,
+    discountKrw,
+    buyerPaidKrw: Math.max(0, listPriceKrw - discountKrw),
+    buyerShippingKrw,
+  };
+}
+
+export function makeOption(name: string, supplyPriceKrw: number, addPriceKrw = 0): ProductOption {
+  return {
+    id: newId("opt"),
+    name,
+    supplyPriceKrw,
+    addPriceKrw,
+    supplierStock: "IN_STOCK",
+    enabled: true,
+  };
+}
+
+function emptyListings(): ChannelListing[] {
+  return ALL_CHANNELS.map((m) => ({ marketplace: m, listed: false, pending: false }));
+}
+
 export interface NewProductInput {
   name: string;
   sourceUrl?: string;
+  supplierName?: string;
   marketplace: Marketplace;
-  sellingPriceKrw: number;
-  sourceCurrency?: Currency;
-  sourcePrice: number;
-  exchangeRate?: number;
-  internationalShippingKrw?: number;
+  listPriceKrw: number;
+  discountKrw?: number;
+  buyerShippingKrw?: number;
+  supplyPriceKrw: number;
+  minOrderQty?: number;
+  shippingKrw?: number;
   minMarginPct?: number;
   minProfitKrw?: number;
-}
-
-/** KRW면 환율 1 고정, 아니면 주어진 환율(없으면 기본값) */
-function resolveRate(currency: Currency, given?: number): number {
-  if (currency === "KRW") return 1;
-  return given ?? DEFAULT_COST.exchangeRate;
+  imageRightsConfirmed?: boolean;
+  options?: ProductOption[];
+  specs?: ProductSpec[];
+  returnCostKrw?: number;
+  exchangeCostKrw?: number;
+  returnRatePct?: number;
 }
 
 export function makeProduct(input: NewProductInput): Product {
   const now = Date.now();
-  const currency = input.sourceCurrency ?? "CNY";
   const cost: CostInputs = {
     ...DEFAULT_COST,
-    sourceCurrency: currency,
-    sourcePrice: input.sourcePrice,
-    exchangeRate: resolveRate(currency, input.exchangeRate),
-    internationalShippingKrw:
-      input.internationalShippingKrw ?? DEFAULT_COST.internationalShippingKrw,
-    platformFeePct: MARKET_FEE_DEFAULT[input.marketplace],
+    returnModel: {
+      ...DEFAULT_RETURN,
+      costPerReturnKrw: input.returnCostKrw ?? DEFAULT_RETURN.costPerReturnKrw,
+      exchangeCostKrw: input.exchangeCostKrw ?? DEFAULT_RETURN.exchangeCostKrw,
+      ratePct: input.returnRatePct ?? DEFAULT_RETURN.ratePct,
+    },
+    supplyPriceKrw: input.supplyPriceKrw,
+    minOrderQty: Math.max(1, Math.floor(input.minOrderQty ?? 1)),
+    shippingKrw: input.shippingKrw ?? DEFAULT_COST.shippingKrw,
   };
-  const productPriceKrw = Math.round(cost.sourcePrice * cost.exchangeRate);
   return {
     id: newId(),
     name: input.name,
     sourceUrl: input.sourceUrl ?? "",
+    supplierName: input.supplierName ?? "",
     marketplace: input.marketplace,
-    sellingPriceKrw: input.sellingPriceKrw,
+    price: makePrice(input.listPriceKrw, input.discountKrw ?? 0, input.buyerShippingKrw ?? 0),
     cost,
-    baselineCost: { ...cost },
+    baselineCost: { ...cost, returnModel: { ...cost.returnModel } },
+    options: input.options ?? [],
     supplierStock: "IN_STOCK",
-    sellerInventory: 0, // 구매대행 = 항상 0
+    sellerInventory: 0, // 위탁배송 = 항상 0
     minMarginPct: input.minMarginPct ?? 15,
     minProfitKrw: input.minProfitKrw ?? 0,
-    channels: [],
-    pendingChannels: [],
     legalBlock: false,
-    customsThresholdKrw: 200000, // ≈ $150
-    dutyRatePct: 8,
-    status: "SELLING",
+    imageRightsConfirmed: input.imageRightsConfirmed ?? false,
+    specs: input.specs ?? [],
+    status: "DRAFT",
+    listings: emptyListings(),
     lastCollectedAt: now,
     createdAt: now,
-    costHistory: [
-      {
-        at: now,
-        sourcePrice: cost.sourcePrice,
-        sourceCurrency: cost.sourceCurrency,
-        exchangeRate: cost.exchangeRate,
-        internationalShippingKrw: cost.internationalShippingKrw,
-        productPriceKrw,
-        note: "등록",
-      },
-    ],
-    events: [{ at: now, type: "CREATED", message: "상품 등록" }],
+    costHistory: [{
+      at: now,
+      supplyPriceKrw: cost.supplyPriceKrw,
+      shippingKrw: cost.shippingKrw,
+      landedCostKrw: cost.supplyPriceKrw + cost.shippingKrw,
+      note: "등록",
+    }],
+    events: [{ at: now, type: "CREATED", message: "상품 추가" }],
   };
 }
