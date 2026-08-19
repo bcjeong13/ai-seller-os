@@ -86,7 +86,10 @@ export function App() {
           <OrderTask orderId={view.orderId} onBack={() => go({ v: "today" })} />
         )}
         {view.v === "import" && <OrderImportPanel onDone={() => go({ v: "today" })} />}
-        {view.v === "products" && <ProductPanel openId={view.id} onBack={() => go({ v: "today" })} />}
+        {view.v === "products" && (
+          <ProductPanel openId={view.id} onBack={() => go({ v: "today" })}
+                        onListing={(id) => go({ v: "listing", productId: id })} />
+        )}
         {view.v === "sourcing" && <SourcingPanel onBack={() => go({ v: "today" })} />}
         {view.v === "settings" && <SettingsPanel onBack={() => go({ v: "today" })} />}
       </main>

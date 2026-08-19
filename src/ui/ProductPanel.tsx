@@ -13,7 +13,8 @@ import { formatKrw, formatPct } from "../domain/money";
 import { agoText } from "../domain/freshness";
 import { STATUS_META, HEALTH_META, GRADE_META, CHANNEL_META, STOCK_LABEL, Badge } from "./meta";
 
-export function ProductPanel({ openId, onBack }: { openId?: string; onBack: () => void }) {
+export function ProductPanel({ openId, onBack, onListing }:
+  { openId?: string; onBack: () => void; onListing: (id: string) => void }) {
   useStore();
   const [sel, setSel] = useState<string | undefined>(openId);
   const [adding, setAdding] = useState(false);
@@ -21,7 +22,7 @@ export function ProductPanel({ openId, onBack }: { openId?: string; onBack: () =
   if (adding) return <AddProduct onDone={() => setAdding(false)} />;
   if (sel) {
     const p = getProduct(sel);
-    if (p) return <ProductDetail product={p} onBack={() => setSel(undefined)} />;
+    if (p) return <ProductDetail product={p} onBack={() => setSel(undefined)} onListing={onListing} />;
   }
 
   const products = getProducts();
@@ -66,7 +67,8 @@ export function ProductPanel({ openId, onBack }: { openId?: string; onBack: () =
 
 // ------------------------------------------------------------
 
-function ProductDetail({ product, onBack }: { product: Product; onBack: () => void }) {
+function ProductDetail({ product, onBack, onListing }:
+  { product: Product; onBack: () => void; onListing: (id: string) => void }) {
   const fee = feeProfileOf(product.marketplace);
   const now = Date.now();
   const opt = computeOptionProfits(product, fee);
@@ -149,7 +151,11 @@ function ProductDetail({ product, onBack }: { product: Product; onBack: () => vo
 
       {/* 마켓 등록 */}
       <div className="card pad">
-        <div className="section-label">마켓 등록</div>
+        <div className="section-label">등록을 끝낸 마켓</div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          체크는 <b>이미 등록을 마쳤다</b>는 뜻입니다. 아직 안 올렸으면 비워두세요 —
+          비워두어야 <b>오늘 할 일</b>의 「마켓에 등록」에 남습니다.
+        </p>
         <div className="listing-grid">
           {ALL_CHANNELS.map((m) => {
             const l = product.listings.find((x) => x.marketplace === m);
@@ -193,7 +199,7 @@ function ProductDetail({ product, onBack }: { product: Product; onBack: () => vo
           <label className="chk-inline">
             <input type="checkbox" checked={product.legalBlock}
                    onChange={(e) => updateProduct(product.id, { legalBlock: e.target.checked })} />
-            판매 차단 (KC·상표권 등)
+            🚫 이 상품은 팔면 안 됨 (KC 미인증·상표권 등)
           </label>
           <label className="chk-inline">
             <input type="checkbox" checked={product.imageRightsConfirmed}
@@ -201,6 +207,18 @@ function ProductDetail({ product, onBack }: { product: Product; onBack: () => vo
             이미지 사용 허용 확인함
           </label>
         </div>
+      </div>
+
+      {/* 상세페이지는 여기서 만든다 — 할 일 목록을 거치지 않아도 되도록 */}
+      <div className="card pad">
+        <div className="section-label">📄 마켓에 올릴 내용 만들기</div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          상품명 후보·상세설명·키워드를 만들어 줍니다. 도매처 재고나 매입가처럼
+          <b> 고객이 보면 안 되는 정보는 빼고</b> 정리합니다.
+        </p>
+        <button className="btn primary lg" onClick={() => onListing(product.id)}>
+          상세페이지 만들러 가기 →
+        </button>
       </div>
 
       <div className="btn-row" style={{ marginTop: 16 }}>
