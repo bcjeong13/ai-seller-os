@@ -9,6 +9,7 @@ import type { Product, Marketplace } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
 import { getProduct, feeProfileOf, setListing, useStore, updateProduct } from "../store/db";
 import { computeOptionProfits, computeScenarios } from "../domain/profitEngine";
+import { buildListingContent } from "../domain/listingContent";
 import { formatKrw, formatPct } from "../domain/money";
 import { CHANNEL_META, GRADE_META } from "./meta";
 
@@ -111,6 +112,9 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
         {copied && <div className="copied">✅ {copied} 복사됨</div>}
       </div>
 
+      {/* 상세 설명 (복사용 텍스트) */}
+      <DescriptionCard product={product} onCopy={copy} />
+
       {/* 이미지 */}
       <div className="card pad">
         <div className="section-label">이미지</div>
@@ -174,6 +178,55 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function DescriptionCard({
+  product,
+  onCopy,
+}: {
+  product: Product;
+  onCopy: (text: string, label: string) => void;
+}) {
+  const c = buildListingContent(product);
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        상세 설명 <span className="tiny muted">복사용 텍스트 — 이미지 아래에 붙이세요</span>
+      </div>
+
+      {c.warnings.length > 0 && (
+        <div className="warn-note" style={{ marginBottom: 12 }}>
+          {c.warnings.map((w, i) => <div key={i} style={{ marginBottom: 3 }}>⚠️ {w}</div>)}
+        </div>
+      )}
+
+      <div className="tiny muted" style={{ marginBottom: 4 }}>상품명 후보</div>
+      {c.nameCandidates.map((n, i) => (
+        <div key={i} className="lstep" style={{ padding: "6px 0" }}>
+          <span style={{ flex: 1, fontSize: 13.5 }}>{n} <span className="tiny muted">({n.length}자)</span></span>
+          <button className="btn xs" onClick={() => onCopy(n, "상품명")}>복사</button>
+        </div>
+      ))}
+
+      {c.tags.length > 0 && (
+        <div style={{ margin: "10px 0" }}>
+          <div className="tiny muted" style={{ marginBottom: 4 }}>키워드 · 태그</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {c.tags.map((t, i) => (
+              <span key={i} style={{ background: "var(--accent-soft)", color: "var(--accent)", borderRadius: 8, padding: "3px 8px", fontSize: 12, fontWeight: 600 }}>#{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="tiny muted" style={{ margin: "6px 0 4px" }}>설명문 (배송·반품·FAQ 자동 포함)</div>
+      <pre className="copy-block">{c.plainText}</pre>
+      <div className="btn-row">
+        <button className="btn primary" onClick={() => onCopy(c.plainText, "상세 설명")}>설명문 전체 복사</button>
+        <button className="btn sm" onClick={() => onCopy(c.keywords.join(", "), "키워드")}>키워드 복사</button>
+      </div>
     </div>
   );
 }
