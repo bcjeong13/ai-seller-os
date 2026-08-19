@@ -304,3 +304,19 @@ a.btn { display:inline-block; text-align:center; text-decoration:none; }
 .comp-row.t-indirect { border-left-color:#d1d5db; opacity:.65; }
 .comp-name { font-size:12.5px; }
 .comp-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+
+/* ---- 공급처 비교 ---- */
+.sup-table, .sup-result { width:100%; border-collapse:collapse; font-size:13px; }
+.sup-table th, .sup-result th { font-size:11px; color:var(--muted); font-weight:700; text-align:left; padding:6px 6px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.sup-table td, .sup-result td { padding:5px 6px; border-bottom:1px solid var(--border); }
+.sup-table td.ctr, .sup-table th.ctr { text-align:center; }
+.cell-in { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
+.cell-in.num { text-align:right; font-variant-numeric:tabular-nums; }
+.cell-in.sm { width:56px; }
+.sup-result td.num, .sup-result th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.sup-result td.num { font-weight:700; }
+.sup-result td.muted { color:var(--muted); font-weight:400; }
+.sup-result tr.rec { background:var(--safe-bg, #e9f7ef); }
+.sup-result tr.dim { opacity:.5; }
+.rec-badge { margin-left:6px; font-size:10.5px; font-weight:800; color:#fff; background:var(--safe,#16a34a); border-radius:6px; padding:1px 6px; }
+.verdict-note { background:var(--accent-soft); color:var(--accent); border-radius:10px; padding:11px 14px; font-size:13px; font-weight:600; }

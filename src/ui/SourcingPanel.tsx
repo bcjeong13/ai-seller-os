@@ -11,6 +11,7 @@ import {
 } from "../domain/sourcing";
 import { RISK_LABEL } from "../domain/riskCategory";
 import { formatKrw } from "../domain/money";
+import { SupplierCompare } from "./SupplierCompare";
 
 export function SourcingPanel({ onBack }: { onBack: () => void }) {
   const [paste, setPaste] = useState("");
@@ -48,6 +49,8 @@ export function SourcingPanel({ onBack }: { onBack: () => void }) {
       </div>
 
       {sum && <Result sum={sum} />}
+
+      <SupplierCompare />
     </div>
   );
 }
