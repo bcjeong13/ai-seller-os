@@ -49,6 +49,17 @@ const OPTION_KEY = /(색상|색깔|컬러|사이즈|규격|옵션|종류|스타�
 /** "수량"이 들어가지만 옵션이 아닌 항목 — 옵션으로 잘못 읽히면 안 된다 */
 const NOT_OPTION = /(최소구매|구매수량|재고|판매수량|누적)/;
 const JUNK = /^(가격|배송|리뷰|구매|평점|판매|무료|쿠폰|할인|장바구니|바로구매|[\d,.\s]+원?)$/i;
+/**
+ * 옵션 값처럼 보이지만 옵션이 아닌 것 — 도매처 페이지의 안내 문구다.
+ * 그냥 두면 고객에게 "옵션: 상세정보 별도표기"로 나간다.
+ */
+const NOT_OPTION_VALUE =
+  /(별도표기|별도\s*문의|상세\s*참조|상세\s*페이지\s*참조|이미지\s*참조|하단\s*참조|본문\s*참조|해당\s*없음|선택\s*안\s*함|없음)/;
+
+/** 이미 저장된 상품에도 같은 검사를 걸 수 있게 내보낸다 */
+export function isJunkOptionName(name: string): boolean {
+  return NOT_OPTION_VALUE.test(name || "");
+}
 
 /**
  * 옵션 표기 1개를 파싱.
@@ -117,6 +128,7 @@ export function parseRawInfo(text: string): {
         safe.split(/[,，、|]+/).forEach((tok) => {
           const o = parseOptionToken(tok);
           if (!o || o.name.length > 30) return;
+          if (NOT_OPTION_VALUE.test(o.name)) return;
           const k = o.name.toLowerCase();
           if (seenOpt.has(k)) return;
           seenOpt.add(k);

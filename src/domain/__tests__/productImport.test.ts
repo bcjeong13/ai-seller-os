@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseProductBlock, parseRawInfo, parseOptionToken, parseReturnPolicy } from "../productImport";
+import { parseProductBlock, parseRawInfo, parseOptionToken, parseReturnPolicy, isJunkOptionName } from "../productImport";
 
 const block = `##AISOS##
 name: 차량용 무선 핸드폰 거치대
@@ -175,5 +175,22 @@ describe("옵션별 공급가 [대괄호] 표기", () => {
       "##AISOS##\nname: 우산\nprice: 5500\nshipping: 2800\nraw:\n옵션: 화이트 [5500], 케이스 [3000], 이름만"
     );
     expect(r.options.map((o) => o.supplyPriceKrw)).toEqual([5500, 3000, 5500]);
+  });
+});
+
+describe("도매처 안내 문구가 옵션으로 새는 것", () => {
+  it("'상세정보 별도표기'는 옵션이 아니다 — 고객에게 그대로 나간다", () => {
+    const r = parseRawInfo("색상: 아이보리, 상세정보 별도표기");
+    expect(r.options.map((o) => o.name)).toEqual(["아이보리"]);
+  });
+
+  it("'상세페이지 참조' 같은 것도 뺀다", () => {
+    const r = parseRawInfo("옵션: 블랙, 상세페이지 참조, 해당없음");
+    expect(r.options.map((o) => o.name)).toEqual(["블랙"]);
+  });
+
+  it("이미 저장된 상품도 같은 기준으로 검사할 수 있다", () => {
+    expect(isJunkOptionName("상세정보 별도표기")).toBe(true);
+    expect(isJunkOptionName("아이보리")).toBe(false);
   });
 });

@@ -21,6 +21,7 @@ import { buildListingHtml } from "./listingHtml";
 import { judgeProductNotice, noticeRows } from "./notice";
 import { defaultSellerPolicy, returnNoticeLines, comparePolicies, worstGap } from "./sellerPolicy";
 import { computeOptionProfits } from "./profitEngine";
+import { isJunkOptionName } from "./productImport";
 
 import { formatKrw } from "./money";
 
@@ -190,6 +191,15 @@ export function toMarketplaceProduct(p: Product, m: Marketplace): MarketplacePro
     issues.push({ level: "BLOCK", text: notice.text });
   } else if (notice.level === "PARTIAL") {
     issues.push({ level: "WARN", text: notice.text });
+  }
+
+  // 도매처 안내 문구가 옵션으로 들어온 것 — 고객에게 그대로 나간다
+  const junk = options.filter((o) => isJunkOptionName(o.name));
+  if (junk.length) {
+    issues.push({
+      level: "BLOCK",
+      text: `옵션이 아닌 것이 옵션에 섞였습니다: ${junk.map((o) => o.name).join(", ")} — 상품 화면에서 끄세요`,
+    });
   }
 
   if (options.length > rule.optionMax) {
