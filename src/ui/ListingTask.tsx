@@ -1,42 +1,26 @@
 // ============================================================
-// 마켓 등록 작업 화면 (개발지시서 §9 P0-2)
-// 마켓 API가 없으므로 등록은 수동이다.
-// 프로그램은 "무엇을 어디에 넣을지" 정리해주고, 어디까지 했는지 추적한다.
+// 등록센터 — 상세페이지 생성 → 내가 승인 → 마켓별 등록 데이터
+//
+// ★ 마켓 API가 없으므로 등록 자체는 사람이 한다.
+//   프로그램은 "무엇을 어디에 넣을지" 만들어주고, 어디까지 했는지 추적한다.
+//
+// ★ 체크박스를 늘어놓지 않는다 (§초보자는 전부 체크하고 넘어간다).
+//   코드가 볼 수 있는 것은 코드가 판정하고, 사람에게는 2가지만 묻는다.
 // ============================================================
 
 import { useState } from "react";
-import type { Product, Marketplace } from "../domain/types";
+import type { Product, Marketplace, SellerReturnPolicy } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
 import { getProduct, feeProfileOf, setListing, useStore, updateProduct } from "../store/db";
-import { computeOptionProfits, computeScenarios } from "../domain/profitEngine";
-import { buildListingContent } from "../domain/listingContent";
-import { formatKrw, formatPct } from "../domain/money";
-import { CHANNEL_META, GRADE_META } from "./meta";
-
-/** 마켓 등록 화면에 붙여넣을 정보 묶음 */
-export function listingCopyText(p: Product): string {
-  const lines = [
-    `[상품명]`,
-    p.name,
-    ``,
-    `[판매가]`,
-    `${p.price.listPriceKrw.toLocaleString()}원`,
-  ];
-  if (p.price.discountKrw > 0) {
-    lines.push(`즉시할인 ${p.price.discountKrw.toLocaleString()}원 → 실결제 ${p.price.buyerPaidKrw.toLocaleString()}원`);
-  }
-  lines.push(``, `[배송비]`);
-  lines.push(p.price.buyerShippingKrw > 0 ? `${p.price.buyerShippingKrw.toLocaleString()}원 (구매자 부담)` : `무료배송`);
-
-  if (p.options.length > 0) {
-    lines.push(``, `[옵션]`);
-    for (const o of p.options.filter((x) => x.enabled)) {
-      lines.push(`${o.name}${o.addPriceKrw ? ` (+${o.addPriceKrw.toLocaleString()}원)` : ""}`);
-    }
-  }
-  if (p.sourceUrl) lines.push(``, `[도매처 원본]`, p.sourceUrl);
-  return lines.join("\n");
-}
+import { buildListingHtml } from "../domain/listingHtml";
+import { judgeProductNotice, NOTICE_LABEL } from "../domain/notice";
+import {
+  reviewForListing, approvalValid, toMarketplaceProduct,
+  type MarketplaceProduct,
+} from "../domain/marketplaceProduct";
+import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
+import { formatKrw } from "../domain/money";
+import { CHANNEL_META } from "./meta";
 
 export function ListingTask({ productId, onBack }: { productId: string; onBack: () => void }) {
   useStore();
@@ -44,11 +28,6 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
   const [copied, setCopied] = useState("");
 
   if (!product) return <div className="card pad center">상품을 찾을 수 없습니다.</div>;
-
-  const fee = feeProfileOf(product.marketplace);
-  const opt = computeOptionProfits(product, fee);
-  const sc = computeScenarios(product.price, product.cost, { feeProfile: fee });
-  const blocked = product.legalBlock || sc.conservative.netProfitKrw < 0 || opt.lossCount > 0;
 
   const copy = async (text: string, label: string) => {
     try {
@@ -58,8 +37,7 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
     } catch { setCopied("복사 실패 — 직접 선택해 복사하세요"); }
   };
 
-  const done = product.listings.filter((l) => l.listed);
-  const todo = ALL_CHANNELS.filter((m) => !product.listings.find((l) => l.marketplace === m)?.listed);
+  const approved = approvalValid(product);
 
   return (
     <div className="work">
@@ -73,213 +51,480 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
         </div>
       </div>
 
-      {/* 등록해도 되는 상품인지 먼저 확인 */}
-      {blocked ? (
-        <div className="card pad">
-          <div className="verdict bad">🔴 등록하기 전에 손볼 곳이 있습니다</div>
-          <ul className="ex-list">
-            {product.legalBlock && <li>판매 차단으로 표시된 상품입니다 (KC·상표권 등)</li>}
-            {sc.conservative.netProfitKrw < 0 && (
-              <li>보수적으로 보면 {formatKrw(Math.abs(sc.conservative.netProfitKrw))} 손해입니다</li>
-            )}
-            {opt.lossCount > 0 && (
-              <li>{opt.totalCount}개 옵션 중 {opt.lossCount}개가 팔면 손해입니다</li>
-            )}
+      <Steps approved={approved} />
+
+      <ReviewCard product={product} />
+      <NoticeCard product={product} />
+      <ReturnPolicyCard product={product} />
+      <DetailCard product={product} onCopy={copy} />
+      <ApproveCard product={product} approved={approved} />
+
+      {approved && <MarketSection product={product} onCopy={copy} />}
+
+      {copied && <div className="copied fixed">✅ {copied} 복사됨</div>}
+    </div>
+  );
+}
+
+function Steps({ approved }: { approved: boolean }) {
+  return (
+    <div className="lsteps-bar">
+      <div className="on">① 검토</div>
+      <span>›</span>
+      <div className={approved ? "on" : ""}>② 내가 승인</div>
+      <span>›</span>
+      <div className={approved ? "on" : ""}>③ 마켓별 등록</div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// ① 검토 — 코드가 판정한다
+// ------------------------------------------------------------
+
+function ReviewCard({ product }: { product: Product }) {
+  const fee = feeProfileOf(product.marketplace);
+  const r = reviewForListing(product, fee);
+
+  return (
+    <div className="card pad">
+      <div className="section-label">등록 검토 <span className="tiny muted">프로그램이 확인한 것</span></div>
+      <ul className="checklist">
+        {r.auto.map((a, i) => (
+          <li key={i} className={a.ok ? "ok" : "no"}>
+            <span>{a.ok ? "✓" : "!"}</span>
+            <b>{a.label}</b> — {a.detail}
+          </li>
+        ))}
+      </ul>
+      {r.blocked && (
+        <div className="warn-note" style={{ marginTop: 12 }}>
+          <b>🔴 이대로는 등록하면 안 됩니다</b>
+          <ul className="ex-list" style={{ marginTop: 6 }}>
+            {r.blockers.map((b, i) => <li key={i}>{b}</li>)}
           </ul>
-          <p className="reason">지금 등록하면 주문이 들어와도 발주가 막힙니다. 판매가를 올리거나 손해 보는 옵션을 끄세요.</p>
-          <button className="btn" onClick={onBack}>상품 정보로 가서 고치기</button>
-        </div>
-      ) : (
-        <div className="card pad">
-          <div className="verdict ok">🟢 등록해도 됩니다</div>
-          <div className="money-grid">
-            <Mi k="판매가" v={formatKrw(product.price.buyerPaidKrw)} />
-            <Mi k="보수적 순이익" v={formatKrw(sc.conservative.netProfitKrw)} s={formatPct(sc.conservative.marginPct)} />
-            <Mi k="옵션" v={`${opt.totalCount}개 모두 정상`} />
-          </div>
-        </div>
-      )}
-
-      {/* 등록 정보 복사 */}
-      <div className="card pad">
-        <div className="section-label">등록할 내용</div>
-        <pre className="copy-block">{listingCopyText(product)}</pre>
-        <div className="btn-row">
-          <button className="btn primary" onClick={() => copy(listingCopyText(product), "등록 정보")}>전체 복사</button>
-          <button className="btn sm" onClick={() => copy(product.name, "상품명")}>상품명만</button>
-          <button className="btn sm" onClick={() => copy(String(product.price.listPriceKrw), "판매가")}>판매가만</button>
-        </div>
-        {copied && <div className="copied">✅ {copied} 복사됨</div>}
-      </div>
-
-      {/* 상세 설명 (복사용 텍스트) */}
-      <DescriptionCard product={product} onCopy={copy} />
-
-      {/* 이미지 */}
-      <div className="card pad">
-        <div className="section-label">이미지</div>
-        {product.imageRightsConfirmed ? (
-          <p className="hint">✅ 이미지 사용 허용을 확인한 상품입니다.</p>
-        ) : (
-          <div className="warn-note">
-            ⚠️ <b>공급사 이미지 사용 허용을 아직 확인하지 않았습니다.</b> 도매처 상품페이지에서
-            이미지 사용 가능 표기를 확인한 뒤 등록하세요.
-            <label className="chk-inline" style={{ marginTop: 8 }}>
-              <input type="checkbox" checked={product.imageRightsConfirmed}
-                     onChange={(e) => updateProduct(product.id, { imageRightsConfirmed: e.target.checked })} />
-              확인했습니다
-            </label>
-          </div>
-        )}
-        <ol className="howto">
-          <li>크롬 확장으로 도매처 상세 이미지를 받습니다 (<code>다운로드 &gt; AISOS &gt; 상품명</code>)</li>
-          <li>공급사 로고·연락처가 박힌 이미지는 빼세요</li>
-          <li>각 마켓 에디터에 <b>대표 1장 + 상세 순서대로</b> 업로드합니다</li>
-        </ol>
-        {product.sourceUrl && (
-          <a className="btn sm" href={product.sourceUrl} target="_blank" rel="noreferrer">도매처 상품페이지 열기 ↗</a>
-        )}
-      </div>
-
-      {/* 마켓별 등록 */}
-      <div className="card pad">
-        <div className="section-label">
-          어디까지 올렸나
-          <span className="tiny muted">{done.length}/{ALL_CHANNELS.length}</span>
-        </div>
-        <p className="hint" style={{ marginTop: 0 }}>
-          이 앱은 마켓에 <b>대신 올려주지 않습니다.</b> 마켓에는 자동 등록 통로가 없어서,
-          판매자센터에서 직접 올리셔야 합니다. 여기는 <b>어디까지 했는지 적어두는 칸</b>입니다.
-        </p>
-        <ol className="howto">
-          <li><b>판매자센터 ↗</b>를 눌러 그 마켓을 엽니다</li>
-          <li>위에서 <b>복사</b>한 상품명·판매가·설명문을 붙여넣고, 이미지를 올려 등록합니다</li>
-          <li>돌아와서 <b>올렸음 ✓</b>를 누릅니다 — 그래야 「오늘 할 일」에서 빠집니다</li>
-        </ol>
-        <div className="listing-steps">
-          {ALL_CHANNELS.map((m) => (
-            <MarketRow key={m} product={product} m={m} />
-          ))}
-        </div>
-        {done.length > 0 && (
-          <div className="hint" style={{ marginTop: 10 }}>
-            <b>상품번호</b>는 적어두면 나중에 그 마켓에서 이 상품을 찾을 때 씁니다. 안 적어도 됩니다.
-          </div>
-        )}
-        {todo.includes("NAVER") && (
-          <div className="warn-note" style={{ marginTop: 12 }}>
-            💡 네이버는 중복·도배성 대량 등록에 민감합니다. 다른 마켓에서 반응을 본 뒤 올리는 걸 권합니다.
-          </div>
-        )}
-      </div>
-
-      {/* 옵션 요약 */}
-      {product.options.length > 0 && (
-        <div className="card pad">
-          <div className="section-label">옵션별 손익</div>
-          <table className="opt-table">
-            <thead><tr><th></th><th>옵션</th><th>추가금</th><th>순이익</th></tr></thead>
-            <tbody>
-              {opt.lines.map((l) => (
-                <tr key={l.optionId} className={l.profit.netProfitKrw < 0 ? "loss" : ""}>
-                  <td>{GRADE_META[l.grade].label}</td>
-                  <td>{l.optionName}</td>
-                  <td>{formatKrw(l.sellingPriceKrw - product.price.buyerPaidKrw)}</td>
-                  <td className={l.profit.netProfitKrw < 0 ? "neg" : "pos"}>{formatKrw(l.profit.netProfitKrw)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </div>
   );
 }
 
-function DescriptionCard({
-  product,
-  onCopy,
-}: {
-  product: Product;
-  onCopy: (text: string, label: string) => void;
-}) {
-  const c = buildListingContent(product);
+// ------------------------------------------------------------
+// 고시정보 — 비어 있는 것만 묻는다
+// ------------------------------------------------------------
+
+function NoticeCard({ product }: { product: Product }) {
+  const st = judgeProductNotice(product);
+  const [open, setOpen] = useState(st.level !== "READY");
+
+  const set = (key: string, value: string) => {
+    // 저장 직전에 최신 상품을 다시 읽는다.
+    // 렌더 시점의 product를 쓰면 여러 칸을 연달아 채울 때 앞엣것이 지워진다.
+    const cur = getProduct(product.id) ?? product;
+    const next = { ...(cur.noticeInfo ?? {}) };
+    if (value.trim()) next[key] = value.trim();
+    else delete next[key];
+    updateProduct(product.id, { noticeInfo: next });
+  };
+
   return (
     <div className="card pad">
       <div className="section-label">
-        상세 설명 <span className="tiny muted">복사용 텍스트 — 이미지 아래에 붙이세요</span>
+        상품정보 제공고시 <span className="tiny muted">{st.label}</span>
+      </div>
+      <div className={"verdict " + (st.level === "READY" ? "ok" : st.level === "BLOCKED" ? "bad" : "warn")}>
+        {NOTICE_LABEL[st.level]} — {st.text}
+      </div>
+      <p className="hint">
+        마켓은 카테고리마다 정해진 항목을 요구합니다. <b>못 채우면 등록이 거부됩니다.</b>
+        도매처에서 읽힌 것은 자동으로 채웠습니다.
+      </p>
+
+      <button className="btn sm" onClick={() => setOpen((v) => !v)}>
+        {open ? "접기" : `${st.filled}/${st.total} 채움 — 열어서 채우기`}
+      </button>
+
+      {open && (
+        <div className="notice-grid">
+          {st.slots.map((s) => (
+            <label key={s.field.key} className="notice-row">
+              <div className="nlab">
+                {s.field.label}
+                {s.source === "spec" && <span className="tiny muted"> 도매처에서 읽음</span>}
+                {s.source === "empty" && <span className="tiny warn-txt"> 비어 있음</span>}
+              </div>
+              <input
+                type="text"
+                defaultValue={s.source === "manual" ? s.value : ""}
+                placeholder={s.source === "spec" ? s.value : "직접 입력"}
+                onBlur={(e) => set(s.field.key, e.target.value)}
+              />
+              {s.field.hint && <div className="tiny muted nhint">{s.field.hint}</div>}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// 판매자 반품정책 — 공급처 정책과 분리한다
+// ------------------------------------------------------------
+
+function ReturnPolicyCard({ product }: { product: Product }) {
+  const saved = product.sellerReturnPolicy;
+  const policy = saved ?? defaultSellerPolicy(product.supplierReturnPolicy);
+  const gaps = comparePolicies(policy, product.supplierReturnPolicy);
+
+  const save = (patch: Partial<SellerReturnPolicy>) => {
+    const cur = getProduct(product.id) ?? product;
+    const base = cur.sellerReturnPolicy ?? defaultSellerPolicy(cur.supplierReturnPolicy);
+    updateProduct(product.id, {
+      sellerReturnPolicy: normalizeSellerPolicy({ ...base, ...patch, updatedAt: Date.now() }),
+    });
+  };
+
+  const sup = product.supplierReturnPolicy;
+
+  return (
+    <div className="card pad">
+      <div className="section-label">교환 · 반품 정책</div>
+      <p className="hint" style={{ marginTop: 0 }}>
+        도매처가 <b>나에게</b> 해주는 것과, 내가 <b>고객에게</b> 약속하는 것은 다릅니다.
+        고객에게 책임을 지는 건 판매자인 나입니다.
+      </p>
+
+      <div className="pol-two">
+        <div className="pol-box sup">
+          <div className="pol-h">도매처가 나에게</div>
+          {sup ? (
+            <ul className="ex-list">
+              {typeof sup.freeReturnDays === "number" && <li>{sup.freeReturnDays}일 이내 반품</li>}
+              {typeof sup.returnFeeKrw === "number" && <li>반품 배송비 {formatKrw(sup.returnFeeKrw)}</li>}
+              {typeof sup.exchangeFeeKrw === "number" && <li>교환 배송비 {formatKrw(sup.exchangeFeeKrw)}</li>}
+            </ul>
+          ) : (
+            <div className="tiny warn-txt">읽지 못했습니다</div>
+          )}
+        </div>
+
+        <div className="pol-box me">
+          <div className="pol-h">내가 고객에게</div>
+          <label className="pol-f">
+            청약철회 기간
+            <span>
+              <input type="number" min={MIN_WITHDRAWAL_DAYS} defaultValue={policy.withdrawalDays}
+                     onBlur={(e) => save({ withdrawalDays: +e.target.value })} /> 일
+            </span>
+          </label>
+          <label className="pol-f">
+            반품 배송비
+            <span>
+              <input type="number" min={0} step={500} defaultValue={policy.returnShippingKrw}
+                     onBlur={(e) => save({ returnShippingKrw: +e.target.value })} /> 원
+            </span>
+          </label>
+          <label className="pol-f">
+            교환 배송비
+            <span>
+              <input type="number" min={0} step={500} defaultValue={policy.exchangeShippingKrw}
+                     onBlur={(e) => save({ exchangeShippingKrw: +e.target.value })} /> 원
+            </span>
+          </label>
+        </div>
       </div>
 
-      {c.warnings.length > 0 && (
+      <ul className="checklist" style={{ marginTop: 12 }}>
+        {gaps.map((g, i) => (
+          <li key={i} className={g.kind === "OK" ? "ok" : "no"}>
+            <span>{g.kind === "OK" ? "✓" : "!"}</span><b>{g.text}</b>
+          </li>
+        ))}
+      </ul>
+
+      {!saved && (
+        <div className="hint">법정 최소 기준({MIN_WITHDRAWAL_DAYS}일)으로 잡아두었습니다. 값을 고치면 저장됩니다.</div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// 상세페이지
+// ------------------------------------------------------------
+
+function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string, l: string) => void }) {
+  const r = buildListingHtml(product);
+  const [tab, setTab] = useState<"view" | "code">("view");
+
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        상세페이지 <span className="tiny muted">마켓 에디터의 HTML 모드에 붙여넣으세요</span>
+      </div>
+
+      {r.todos.length > 0 && (
         <div className="warn-note" style={{ marginBottom: 12 }}>
-          {c.warnings.map((w, i) => <div key={i} style={{ marginBottom: 3 }}>⚠️ {w}</div>)}
+          <b>손볼 곳</b>
+          <ul className="ex-list" style={{ marginTop: 6 }}>
+            {r.todos.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
         </div>
       )}
 
-      <div className="tiny muted" style={{ marginBottom: 4 }}>상품명 후보</div>
-      {c.nameCandidates.map((n, i) => (
-        <div key={i} className="lstep" style={{ padding: "6px 0" }}>
-          <span style={{ flex: 1, fontSize: 13.5 }}>{n} <span className="tiny muted">({n.length}자)</span></span>
-          <button className="btn xs" onClick={() => onCopy(n, "상품명")}>복사</button>
-        </div>
-      ))}
-
-      {c.tags.length > 0 && (
-        <div style={{ margin: "10px 0" }}>
-          <div className="tiny muted" style={{ marginBottom: 4 }}>키워드 · 태그</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {c.tags.map((t, i) => (
-              <span key={i} style={{ background: "var(--accent-soft)", color: "var(--accent)", borderRadius: 8, padding: "3px 8px", fontSize: 12, fontWeight: 600 }}>#{t}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="tiny muted" style={{ margin: "6px 0 4px" }}>설명문 (배송·반품·FAQ 자동 포함)</div>
-      <pre className="copy-block">{c.plainText}</pre>
       <div className="btn-row">
-        <button className="btn primary" onClick={() => onCopy(c.plainText, "상세 설명")}>설명문 전체 복사</button>
-        <button className="btn sm" onClick={() => onCopy(c.keywords.join(", "), "키워드")}>키워드 복사</button>
+        <button className={"btn sm" + (tab === "view" ? " primary" : "")} onClick={() => setTab("view")}>미리보기</button>
+        <button className={"btn sm" + (tab === "code" ? " primary" : "")} onClick={() => setTab("code")}>HTML</button>
+      </div>
+
+      {tab === "view" ? (
+        <div className="html-preview" dangerouslySetInnerHTML={{ __html: r.html }} />
+      ) : (
+        <pre className="copy-block small">{r.html}</pre>
+      )}
+
+      <div className="btn-row">
+        <button className="btn primary" onClick={() => onCopy(r.html, "상세페이지 HTML")}>
+          HTML 복사
+        </button>
+        <span className="tiny muted">이미지 자리 {r.imageSlots}곳 — 마켓 에디터에서 채우세요</span>
       </div>
     </div>
   );
 }
 
-function MarketRow({ product, m }: { product: Product; m: Marketplace }) {
-  const c = CHANNEL_META[m];
-  const l = product.listings.find((x) => x.marketplace === m);
-  const [no, setNo] = useState(l?.marketProductNo ?? "");
+// ------------------------------------------------------------
+// ② 승인 — 사람에게는 코드가 볼 수 없는 것만 묻는다
+// ------------------------------------------------------------
+
+function ApproveCard({ product, approved }: { product: Product; approved: boolean }) {
+  const fee = feeProfileOf(product.marketplace);
+  const r = reviewForListing(product, fee);
+  const a = product.listingApproval;
+  const [img, setImg] = useState(a?.imageChecked ?? false);
+  const [word, setWord] = useState(a?.wordingChecked ?? false);
+
+  const staleApproval = !!a && !approved && a.approvedPriceKrw !== product.price.buyerPaidKrw;
+
+  const approve = () => {
+    updateProduct(product.id, {
+      // 이미지 확인은 한 곳에서만 한다 — 승인에서 확인하면 상품 쪽도 함께 켠다
+      imageRightsConfirmed: img,
+      listingApproval: {
+        approvedAt: Date.now(),
+        approvedPriceKrw: product.price.buyerPaidKrw,
+        imageChecked: img,
+        wordingChecked: word,
+      },
+    });
+  };
+
+  const cancel = () => updateProduct(product.id, { listingApproval: undefined });
+
+  if (approved) {
+    return (
+      <div className="card pad">
+        <div className="verdict ok">✅ 등록 승인됨 — {formatKrw(product.price.buyerPaidKrw)}</div>
+        <p className="hint">
+          가격을 바꾸면 승인이 자동으로 풀립니다. 바뀐 가격으로 다시 확인해야 하기 때문입니다.
+        </p>
+        <button className="btn sm" onClick={cancel}>승인 취소</button>
+      </div>
+    );
+  }
 
   return (
-    <div className={"lstep" + (l?.listed ? " done" : "")}>
-      <span className="chch" style={{ color: c.color, background: c.bg }}>{c.short}</span>
-      <span className="lname">{c.label}</span>
-      {l?.listed ? (
-        <>
-          <span className="ok-txt tiny">✅ 등록함</span>
-          <input className="pno" value={no} placeholder="상품번호(선택)"
-                 onChange={(e) => setNo(e.target.value)}
-                 onBlur={() => setListing(product.id, m, { marketProductNo: no })} />
-          <button className="btn xs" onClick={() => setListing(product.id, m, { listed: false })}>취소</button>
-        </>
-      ) : (
-        <>
-          {c.url && <a className="btn xs" href={c.url} target="_blank" rel="noreferrer">판매자센터 ↗</a>}
-          <button className="btn xs primary" onClick={() => setListing(product.id, m, { listed: true, pending: false })}>
-            올렸음 ✓
-          </button>
-        </>
+    <div className="card pad" style={{ borderColor: "var(--accent)" }}>
+      <div className="section-label">내가 확인할 것 <span className="tiny muted">프로그램이 볼 수 없는 것</span></div>
+
+      {staleApproval && (
+        <div className="warn-note" style={{ marginBottom: 12 }}>
+          승인한 뒤 판매가가 {formatKrw(a!.approvedPriceKrw)} → {formatKrw(product.price.buyerPaidKrw)}로 바뀌었습니다. 다시 확인해 주세요.
+        </div>
       )}
+
+      <label className="ask-row">
+        <input type="checkbox" checked={img} onChange={(e) => setImg(e.target.checked)} />
+        <div>
+          <b>{r.askHuman[0].label}</b>
+          <div className="tiny muted">{r.askHuman[0].detail}</div>
+        </div>
+      </label>
+      <label className="ask-row">
+        <input type="checkbox" checked={word} onChange={(e) => setWord(e.target.checked)} />
+        <div>
+          <b>{r.askHuman[1].label}</b>
+          <div className="tiny muted">{r.askHuman[1].detail}</div>
+        </div>
+      </label>
+
+      <button className="btn primary lg" disabled={!img || !word || r.blocked} onClick={approve}>
+        {r.blocked ? "먼저 위의 문제를 고쳐주세요" : "✅ 이 상품 등록 승인"}
+      </button>
     </div>
   );
 }
 
-function Mi({ k, v, s }: { k: string; v: string; s?: string }) {
+// ------------------------------------------------------------
+// ③ 마켓별 등록
+// ------------------------------------------------------------
+
+function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: string, l: string) => void }) {
+  const [sel, setSel] = useState<Marketplace[]>(
+    ALL_CHANNELS.filter((m) => !product.listings.find((l) => l.marketplace === m)?.listed)
+  );
+  const [open, setOpen] = useState<Marketplace | null>(null);
+
+  const toggle = (m: Marketplace) =>
+    setSel((s) => (s.includes(m) ? s.filter((x) => x !== m) : [...s, m]));
+
+  const done = product.listings.filter((l) => l.listed);
+
   return (
-    <div className="m">
-      <div className="mk">{k}</div>
-      <div className="mv">{v}</div>
-      {s && <div className="ms">{s}</div>}
+    <>
+      <div className="card pad">
+        <div className="section-label">
+          어디에 올릴까요 <span className="tiny muted">{done.length}/{ALL_CHANNELS.length} 올림</span>
+        </div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          마켓마다 상품명 길이·필수 항목이 다릅니다. 고른 마켓에 맞춰 각각 변환해 드립니다.
+        </p>
+        <div className="listing-grid">
+          {ALL_CHANNELS.map((m) => {
+            const c = CHANNEL_META[m];
+            const listed = product.listings.find((x) => x.marketplace === m)?.listed;
+            return (
+              <label key={m} className={"chkbtn" + (sel.includes(m) ? " on" : "")}>
+                <input type="checkbox" checked={sel.includes(m)} onChange={() => toggle(m)} />
+                <span className="chch" style={{ color: c.color, background: c.bg }}>{c.short}</span>
+                {c.label}
+                {listed && <span className="tiny ok-txt"> 올림</span>}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {sel.map((m) => (
+        <MarketCard
+          key={m}
+          mp={toMarketplaceProduct(product, m)}
+          listed={!!product.listings.find((x) => x.marketplace === m)?.listed}
+          open={open === m}
+          onToggle={() => setOpen((o) => (o === m ? null : m))}
+          onCopy={onCopy}
+          onListed={(v) => setListing(product.id, m, { listed: v, pending: false })}
+        />
+      ))}
+    </>
+  );
+}
+
+function MarketCard({
+  mp, listed, open, onToggle, onCopy, onListed,
+}: {
+  mp: MarketplaceProduct;
+  listed: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onCopy: (t: string, l: string) => void;
+  onListed: (v: boolean) => void;
+}) {
+  const c = CHANNEL_META[mp.marketplace];
+  const blocks = mp.issues.filter((i) => i.level === "BLOCK");
+  const warns = mp.issues.filter((i) => i.level === "WARN");
+
+  return (
+    <div className={"card pad mk-card" + (listed ? " done" : "")}>
+      <div className="mk-head">
+        <span className="chch" style={{ color: c.color, background: c.bg }}>{c.short}</span>
+        <b>{mp.label}</b>
+        {blocks.length > 0
+          ? <span className="tiny warn-txt">🔴 등록 불가 {blocks.length}</span>
+          : <span className="tiny ok-txt">🟢 준비됨</span>}
+        <div className="spacer" />
+        {listed
+          ? <button className="btn xs" onClick={() => onListed(false)}>올림 취소</button>
+          : <button className="btn xs primary" onClick={() => onListed(true)}>올렸음 ✓</button>}
+      </div>
+
+      {blocks.length > 0 && (
+        <ul className="ex-list">{blocks.map((b, i) => <li key={i}>{b.text}</li>)}</ul>
+      )}
+
+      <table className="mk-table">
+        <tbody>
+          <tr>
+            <th>상품명</th>
+            <td>
+              {mp.name}
+              <button className="btn xs" onClick={() => onCopy(mp.name, "상품명")}>복사</button>
+              {mp.nameChanged && <div className="tiny muted">도매처 이름에서 홍보문구·특수문자를 걷어냈습니다</div>}
+            </td>
+          </tr>
+          <tr>
+            <th>판매가</th>
+            <td>
+              {formatKrw(mp.buyerPaidKrw)}
+              <button className="btn xs" onClick={() => onCopy(String(mp.buyerPaidKrw), "판매가")}>복사</button>
+            </td>
+          </tr>
+          <tr>
+            <th>배송비</th>
+            <td>
+              {mp.buyerShippingKrw > 0 ? formatKrw(mp.buyerShippingKrw) : "무료배송"}
+              {" · "}<b>선불(주문시결제)</b>
+              <div className="tiny muted">착불로 두면 택배기사가 고객에게 배송비를 요구합니다</div>
+            </td>
+          </tr>
+          {mp.options.length > 0 && (
+            <tr>
+              <th>옵션 {mp.options.length}개</th>
+              <td>
+                {mp.options.map((o) => o.addPriceKrw ? `${o.name} (+${formatKrw(o.addPriceKrw)})` : o.name).join(" / ")}
+                <button className="btn xs"
+                        onClick={() => onCopy(mp.options.map((o) => o.addPriceKrw ? `${o.name},${o.addPriceKrw}` : o.name).join("\n"), "옵션")}>
+                  복사
+                </button>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <div className="btn-row">
+        <button className="btn sm primary" onClick={() => onCopy(mp.detailHtml, `${mp.label} 상세 HTML`)}>
+          상세페이지 HTML 복사
+        </button>
+        {mp.centerUrl && (
+          <a className="btn sm" href={mp.centerUrl} target="_blank" rel="noreferrer">판매자센터 ↗</a>
+        )}
+        <button className="btn sm" onClick={onToggle}>{open ? "접기" : "고시정보·주의사항"}</button>
+      </div>
+
+      {open && (
+        <>
+          {mp.notice.length > 0 && (
+            <table className="mk-table" style={{ marginTop: 10 }}>
+              <tbody>
+                {mp.notice.map((n) => (
+                  <tr key={n.label}><th>{n.label}</th><td>{n.value}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <button className="btn xs" style={{ marginTop: 8 }}
+                  onClick={() => onCopy(mp.notice.map((n) => `${n.label}: ${n.value}`).join("\n"), "고시정보")}>
+            고시정보 복사
+          </button>
+          {warns.length > 0 && (
+            <ul className="ex-list" style={{ marginTop: 10 }}>
+              {warns.map((w, i) => <li key={i}>{w.text}</li>)}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

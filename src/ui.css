@@ -320,3 +320,44 @@ a.btn { display:inline-block; text-align:center; text-decoration:none; }
 .sup-result tr.dim { opacity:.5; }
 .rec-badge { margin-left:6px; font-size:10.5px; font-weight:800; color:#fff; background:var(--safe,#16a34a); border-radius:6px; padding:1px 6px; }
 .verdict-note { background:var(--accent-soft); color:var(--accent); border-radius:10px; padding:11px 14px; font-size:13px; font-weight:600; }
+
+/* ============ 등록센터 ============ */
+.lsteps-bar { display:flex; align-items:center; gap:8px; margin:0 0 14px; font-size:13px; color:var(--muted2); }
+.lsteps-bar > div { padding:6px 12px; border-radius:999px; background:var(--card); border:1px solid var(--border); font-weight:600; }
+.lsteps-bar > div.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+
+.notice-grid { display:grid; gap:12px; margin-top:12px; }
+.notice-row { display:block; }
+.notice-row .nlab { font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:5px; }
+.notice-row input { width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:9px; font-size:14px; background:var(--card); color:var(--text); }
+.notice-row input:focus { outline:none; border-color:var(--accent); }
+.notice-row .nhint { margin-top:4px; line-height:1.5; }
+
+.pol-two { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+.pol-box { border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+.pol-box.sup { background:var(--block-bg); }
+.pol-box.me { background:var(--accent-soft); border-color:var(--accent); }
+.pol-h { font-size:12px; font-weight:800; color:var(--muted); margin-bottom:8px; letter-spacing:.02em; }
+.pol-box.me .pol-h { color:var(--accent); }
+.pol-f { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; margin-bottom:8px; }
+.pol-f span { display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--muted); }
+.pol-f input { width:74px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; text-align:right; background:var(--card); color:var(--text); }
+@media (max-width:560px) { .pol-two { grid-template-columns:1fr; } }
+
+.html-preview { border:1px solid var(--border); border-radius:12px; padding:14px; margin:12px 0; max-height:460px; overflow:auto; background:#fff; }
+.html-preview img { max-width:100%; }
+.copy-block.small { font-size:11px; max-height:300px; overflow:auto; }
+
+.ask-row { display:flex; gap:11px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--border); font-size:14px; }
+.ask-row:last-of-type { border-bottom:none; margin-bottom:8px; }
+.ask-row input { margin-top:3px; width:17px; height:17px; flex:none; accent-color:var(--accent); }
+.ask-row .tiny { margin-top:3px; line-height:1.55; }
+
+.mk-card.done { opacity:.62; }
+.mk-head { display:flex; align-items:center; gap:9px; margin-bottom:10px; font-size:14.5px; }
+.mk-head .spacer { flex:1; }
+.mk-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.mk-table th { width:88px; text-align:left; padding:8px 10px 8px 0; color:var(--muted); font-weight:600; vertical-align:top; border-bottom:1px solid var(--border); }
+.mk-table td { padding:8px 0; border-bottom:1px solid var(--border); word-break:break-all; }
+.mk-table td .btn.xs { margin-left:8px; vertical-align:baseline; }
+.copied.fixed { position:sticky; bottom:12px; margin-top:12px; }

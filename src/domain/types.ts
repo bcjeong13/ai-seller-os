@@ -134,6 +134,36 @@ export interface ReturnPolicy {
   approvedForCustomer: boolean;
 }
 
+/**
+ * 판매자 반품/교환 정책 — 고객에게 안내하는 내용.
+ * 공급처 정책(ReturnPolicy)과 분리해서 관리한다. 값이 없으면 법정 기준으로 안내한다.
+ */
+export interface SellerReturnPolicy {
+  /** 청약철회 기간(일). 전자상거래법상 최소 7일 — 그보다 짧게 잡을 수 없다 */
+  withdrawalDays: number;
+  /** 반품 배송비 — 고객이 부담하는 금액 */
+  returnShippingKrw: number;
+  /** 교환 배송비 */
+  exchangeShippingKrw: number;
+  /** 반품이 불가능한 경우 (직접 작성) */
+  exceptions?: string;
+  /** 공급처 정책을 참고해서 정했는가 — 화면에 차이를 보여주기 위한 표시 */
+  basedOnSupplier: boolean;
+  updatedAt: number;
+}
+
+/** 등록 승인 기록 — 누가 언제 무엇을 확인했는가 */
+export interface ListingApproval {
+  approvedAt: number;
+  /** 승인 시점의 판매가 — 이후 가격이 바뀌면 승인을 무효로 본다 */
+  approvedPriceKrw: number;
+  /** 사람만 확인할 수 있는 항목들 */
+  imageChecked: boolean;
+  wordingChecked: boolean;
+  /** 승인 당시 상세설명 (나중에 바뀌었는지 비교용) */
+  htmlHash?: string;
+}
+
 /** 시장 조사 가격 — 1단계는 사용자가 직접 입력 */
 export interface MarketPrice {
   /** 검색에 쓴 키워드 */
@@ -280,8 +310,24 @@ export interface Product {
   /** 스펙 (소재·중량 등) — 확장에서 가져온 것을 그대로 보관 */
   specs: ProductSpec[];
 
-  /** 공급처 반품/교환 정책 */
+  /** 공급처 반품/교환 정책 — 도매처가 나에게 해주는 것 */
   supplierReturnPolicy?: ReturnPolicy;
+
+  /**
+   * 판매자 반품/교환 정책 — 내가 고객에게 약속하는 것.
+   * ★ 공급처 정책과 절대 같지 않다. 공급처가 정책을 바꿔도
+   *   나는 이미 고객에게 약속한 상태이고, 법적 책임은 판매자인 나에게 있다.
+   */
+  sellerReturnPolicy?: SellerReturnPolicy;
+
+  /**
+   * 상품정보제공고시 — 사용자가 직접 입력한 값만 담는다.
+   * 도매처 스펙에서 자동으로 읽히는 것은 저장하지 않는다 (notice.ts가 매번 채운다).
+   */
+  noticeInfo?: Record<string, string>;
+
+  /** 등록 승인 — AI가 만든 내용을 사람이 확인했는가 */
+  listingApproval?: ListingApproval;
 
   /** 시장 조사 가격 */
   marketPrice?: MarketPrice;
