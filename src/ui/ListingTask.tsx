@@ -144,14 +144,28 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
       {/* 마켓별 등록 */}
       <div className="card pad">
         <div className="section-label">
-          어디에 올릴까요
-          <span className="tiny muted">{done.length}/{ALL_CHANNELS.length} 완료</span>
+          어디까지 올렸나
+          <span className="tiny muted">{done.length}/{ALL_CHANNELS.length}</span>
         </div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          이 앱은 마켓에 <b>대신 올려주지 않습니다.</b> 마켓에는 자동 등록 통로가 없어서,
+          판매자센터에서 직접 올리셔야 합니다. 여기는 <b>어디까지 했는지 적어두는 칸</b>입니다.
+        </p>
+        <ol className="howto">
+          <li><b>판매자센터 ↗</b>를 눌러 그 마켓을 엽니다</li>
+          <li>위에서 <b>복사</b>한 상품명·판매가·설명문을 붙여넣고, 이미지를 올려 등록합니다</li>
+          <li>돌아와서 <b>올렸음 ✓</b>를 누릅니다 — 그래야 「오늘 할 일」에서 빠집니다</li>
+        </ol>
         <div className="listing-steps">
           {ALL_CHANNELS.map((m) => (
             <MarketRow key={m} product={product} m={m} />
           ))}
         </div>
+        {done.length > 0 && (
+          <div className="hint" style={{ marginTop: 10 }}>
+            <b>상품번호</b>는 적어두면 나중에 그 마켓에서 이 상품을 찾을 때 씁니다. 안 적어도 됩니다.
+          </div>
+        )}
         {todo.includes("NAVER") && (
           <div className="warn-note" style={{ marginTop: 12 }}>
             💡 네이버는 중복·도배성 대량 등록에 민감합니다. 다른 마켓에서 반응을 본 뒤 올리는 걸 권합니다.
@@ -252,7 +266,7 @@ function MarketRow({ product, m }: { product: Product; m: Marketplace }) {
         <>
           {c.url && <a className="btn xs" href={c.url} target="_blank" rel="noreferrer">판매자센터 ↗</a>}
           <button className="btn xs primary" onClick={() => setListing(product.id, m, { listed: true, pending: false })}>
-            등록 완료
+            올렸음 ✓
           </button>
         </>
       )}
