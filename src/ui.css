@@ -361,3 +361,9 @@ a.btn { display:inline-block; text-align:center; text-decoration:none; }
 .mk-table td { padding:8px 0; border-bottom:1px solid var(--border); word-break:break-all; }
 .mk-table td .btn.xs { margin-left:8px; vertical-align:baseline; }
 .copied.fixed { position:sticky; bottom:12px; margin-top:12px; }
+
+/* 상세페이지 미리보기 — 실제 폭으로 본다 */
+.preview-stage { background:var(--block-bg); border-radius:12px; padding:14px; margin:10px 0; display:flex; justify-content:center; }
+.preview-stage .html-preview { margin:0; max-height:560px; width:100%; }
+.preview-stage.mobile .html-preview { width:390px; max-width:100%; border-radius:16px; box-shadow:var(--shadow); }
+.preview-stage.pc .html-preview { width:100%; }

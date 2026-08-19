@@ -15,7 +15,7 @@ import { getProduct, feeProfileOf, setListing, useStore, updateProduct } from ".
 import { buildListingHtml } from "../domain/listingHtml";
 import { judgeProductNotice, NOTICE_LABEL } from "../domain/notice";
 import {
-  reviewForListing, approvalValid, toMarketplaceProduct,
+  reviewForListing, approvalValid, toMarketplaceProduct, marketCopyText,
   type MarketplaceProduct,
 } from "../domain/marketplaceProduct";
 import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
@@ -256,7 +256,7 @@ function ReturnPolicyCard({ product }: { product: Product }) {
 
 function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string, l: string) => void }) {
   const r = buildListingHtml(product);
-  const [tab, setTab] = useState<"view" | "code">("view");
+  const [tab, setTab] = useState<"mobile" | "pc" | "code">("mobile");
 
   return (
     <div className="card pad">
@@ -274,21 +274,31 @@ function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string,
       )}
 
       <div className="btn-row">
-        <button className={"btn sm" + (tab === "view" ? " primary" : "")} onClick={() => setTab("view")}>미리보기</button>
-        <button className={"btn sm" + (tab === "code" ? " primary" : "")} onClick={() => setTab("code")}>HTML</button>
+        <button className={"btn sm" + (tab === "mobile" ? " primary" : "")} onClick={() => setTab("mobile")}>📱 휴대폰</button>
+        <button className={"btn sm" + (tab === "pc" ? " primary" : "")} onClick={() => setTab("pc")}>🖥️ PC</button>
+        <button className={"btn sm" + (tab === "code" ? " primary" : "")} onClick={() => setTab("code")}>&lt;/&gt; HTML</button>
       </div>
 
-      {tab === "view" ? (
-        <div className="html-preview" dangerouslySetInnerHTML={{ __html: r.html }} />
-      ) : (
+      {tab === "code" ? (
         <pre className="copy-block small">{r.html}</pre>
+      ) : (
+        <>
+          <p className="hint">
+            {tab === "mobile"
+              ? "고객 10명 중 8명 이상은 이 화면으로 봅니다. 여기서 읽히지 않으면 안 팔립니다."
+              : "PC에서는 이렇게 보입니다."}
+          </p>
+          <div className={"preview-stage " + tab}>
+            <div className="html-preview" dangerouslySetInnerHTML={{ __html: r.html }} />
+          </div>
+        </>
       )}
 
       <div className="btn-row">
         <button className="btn primary" onClick={() => onCopy(r.html, "상세페이지 HTML")}>
           HTML 복사
         </button>
-        <span className="tiny muted">이미지 자리 {r.imageSlots}곳 — 마켓 에디터에서 채우세요</span>
+        <span className="tiny muted">회색 칸 {r.imageSlots}곳에 이미지를 넣으면 완성입니다</span>
       </div>
     </div>
   );
@@ -494,6 +504,9 @@ function MarketCard({
       </table>
 
       <div className="btn-row">
+        <button className="btn sm primary" onClick={() => onCopy(marketCopyText(mp), `${mp.label} 등록정보 전체`)}>
+          📋 등록정보 전체 복사
+        </button>
         <button className="btn sm primary" onClick={() => onCopy(mp.detailHtml, `${mp.label} 상세 HTML`)}>
           상세페이지 HTML 복사
         </button>

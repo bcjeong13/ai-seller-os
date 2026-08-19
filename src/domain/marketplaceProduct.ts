@@ -242,6 +242,30 @@ export function toMarketplaceProduct(p: Product, m: Marketplace): MarketplacePro
   };
 }
 
+/**
+ * 이 마켓에 넣을 것 전부를 한 덩어리로.
+ * 상세 HTML은 길어서 뺀다 — 따로 복사한다.
+ */
+export function marketCopyText(mp: MarketplaceProduct): string {
+  const L: string[] = [
+    `[상품명]`, mp.name, ``,
+    `[판매가]`, `${mp.buyerPaidKrw}`, ``,
+    `[배송비]`,
+    mp.buyerShippingKrw > 0 ? `${mp.buyerShippingKrw}원` : `무료배송`,
+    `결제방식: 선불(주문시결제)  ※ 착불로 두지 마세요`,
+  ];
+  if (mp.options.length) {
+    L.push(``, `[옵션]`);
+    for (const o of mp.options) L.push(o.addPriceKrw ? `${o.name}\t${o.addPriceKrw}` : o.name);
+  }
+  if (mp.notice.length) {
+    L.push(``, `[상품정보 제공고시]`);
+    for (const n of mp.notice) L.push(`${n.label}: ${n.value}`);
+  }
+  L.push(``, `[교환·반품 안내]`, ...mp.returnLines);
+  return L.join("\n");
+}
+
 export function toAllMarketplaces(p: Product, only?: Marketplace[]): MarketplaceProduct[] {
   return (only ?? ALL_CHANNELS).map((m) => toMarketplaceProduct(p, m));
 }

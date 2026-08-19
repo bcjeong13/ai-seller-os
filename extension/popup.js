@@ -730,4 +730,95 @@ $("surveyCopy").addEventListener("click", async () => {
   }
 });
 
+// ------------------------------------------------------------
+// 판매자센터 등록화면 조사
+//
+// ★ 읽기만 한다. 입력도 저장도 하지 않는다.
+// ★ 값은 가져오지 않는다 — 칸의 "이름"만 본다.
+//   자동입력을 만들려면 어떤 칸이 있는지부터 알아야 한다.
+// ------------------------------------------------------------
+
+function formProbe() {
+  function labelOf(el) {
+    // 1) for=id 로 연결된 label
+    if (el.id) {
+      var l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+      if (l && l.textContent.trim()) return l.textContent.trim();
+    }
+    // 2) 감싸고 있는 label
+    var p = el.closest("label");
+    if (p && p.textContent.trim()) return p.textContent.trim();
+    // 3) 접근성 이름
+    var al = el.getAttribute("aria-label");
+    if (al) return al.trim();
+    // 4) 바로 앞 칸 제목 (th / dt / 앞 형제)
+    var row = el.closest("tr, li, dd, .form-row, div");
+    if (row) {
+      var h = row.querySelector("th, dt, legend, strong, b");
+      if (h && h.textContent.trim()) return h.textContent.trim();
+      var prev = row.previousElementSibling;
+      if (prev && prev.textContent.trim().length < 40) return prev.textContent.trim();
+    }
+    return "";
+  }
+
+  function visible(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  var out = [];
+  var nodes = document.querySelectorAll(
+    "input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select, [contenteditable=true]"
+  );
+
+  for (var i = 0; i < nodes.length && out.length < 120; i++) {
+    var el = nodes[i];
+    if (!visible(el)) continue;
+    var tag = el.tagName.toLowerCase();
+    var type = el.getAttribute("type") || (tag === "input" ? "text" : tag);
+    var label = labelOf(el).replace(/\s+/g, " ").slice(0, 40);
+    var ph = (el.getAttribute("placeholder") || "").replace(/\s+/g, " ").slice(0, 30);
+    var name = el.getAttribute("name") || "";
+    var id = el.id || "";
+    // 개인정보·인증 관련 칸은 조사 대상이 아니다
+    if (/pass|pwd|card|account|resident|jumin|ssn/i.test(name + " " + id)) continue;
+    out.push([tag + ":" + type, label, ph, id, name].join("|"));
+  }
+
+  var iframes = document.querySelectorAll("iframe").length;
+  return { url: location.hostname + location.pathname, fields: out, iframes: iframes };
+}
+
+$("formRun").addEventListener("click", async () => {
+  $("formStatus").textContent = "읽는 중…";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: formProbe });
+    const r = res && res[0] && res[0].result;
+    if (!r || !r.fields.length) {
+      $("formStatus").textContent = "입력칸을 찾지 못했습니다. 상품등록 화면인지 확인해 주세요.";
+      return;
+    }
+    const lines = ["##AISOS-FORM##", "page|" + r.url, "iframes|" + r.iframes].concat(r.fields);
+    $("formOut").value = lines.join("\n");
+    $("formOut").style.display = "block";
+    $("formCopy").style.display = "block";
+    $("formStatus").textContent =
+      "입력칸 " + r.fields.length + "개를 찾았습니다" +
+      (r.iframes > 0 ? " (프레임 " + r.iframes + "개는 따로 읽어야 합니다)" : "") + ".";
+  } catch (e) {
+    $("formStatus").textContent = "읽지 못했습니다 — 이 페이지에서는 확장이 동작하지 않습니다.";
+  }
+});
+
+$("formCopy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("formOut").value);
+    $("formStatus").textContent = "✅ 복사됨";
+  } catch (e) {
+    $("formStatus").textContent = "복사 실패 — 아래 내용을 직접 선택해 복사하세요.";
+  }
+});
+
 run();
