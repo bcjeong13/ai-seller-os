@@ -47,7 +47,13 @@ function dedupe(arr: string[]): string[] {
 /** 상품명 후보 (네이버 권장 ~50자) */
 function makeNames(p: Product): string[] {
   const core = p.name.trim();
-  const hints = p.specs.map((s) => s.value.trim()).filter((v) => v && v.length <= 10).slice(0, 2);
+  // ★ 상품명에 넣어도 되는 스펙만 쓴다. 제조사·원산지·재고를 상품명에 붙이면 안 된다.
+  const NAME_OK = /(소재|재질|사이즈|규격|용량|색상|컬러|중량|무게|타입|종류)/;
+  const hints = p.specs
+    .filter((s) => NAME_OK.test(s.key) && !isSellerOnlySpec(s.key))
+    .map((s) => s.value.trim())
+    .filter((v) => v && v.length <= 10)
+    .slice(0, 2);
   const raw = [
     core,
     [core, ...hints].join(" "),
@@ -56,9 +62,21 @@ function makeNames(p: Product): string[] {
   return dedupe(raw.map((s) => (s.length > 50 ? s.slice(0, 50).trim() : s))).filter(Boolean);
 }
 
+/**
+ * ★ 고객에게 보여주면 안 되는 스펙.
+ *   확장은 셀러가 판단할 정보(도매처 재고·최소구매수량·공급사)까지 수집한다.
+ *   그대로 상세설명에 넣으면 "도매처 재고 41만개" 같은 도매 표기가 노출되고,
+ *   제조사·공급사명으로 고객이 도매처를 찾아가 이탈한다.
+ */
+const SELLER_ONLY = /(재고|최소구매|구매수량|공급가|공급사|도매|매입|원가|사입|판매자|사업자|연락처|전화|이메일|메일|주소|모델명|제조사)/;
+
+export function isSellerOnlySpec(key: string): boolean {
+  return SELLER_ONLY.test(key || "");
+}
+
 function specBody(specs: ProductSpec[]): string {
   return specs
-    .filter((s) => s.key && s.value)
+    .filter((s) => s.key && s.value && !isSellerOnlySpec(s.key))
     .map((s) => `· ${s.key}: ${s.value}`)
     .join("\n");
 }
@@ -114,13 +132,18 @@ function makeWarnings(p: Product, unapprovedPolicy: boolean): string[] {
   if (unapprovedPolicy) {
     w.push("도매처 반품정책이 아직 고객용으로 승인되지 않아 일반 안내(7일 청약철회)만 넣었습니다.");
   }
+  const hidden = dedupe(p.specs.filter((s) => isSellerOnlySpec(s.key)).map((s) => s.key));
+  if (hidden.length > 0) {
+    w.push(`고객에게 보이면 안 되는 항목을 뺐습니다: ${hidden.join(", ")} — 도매처가 드러납니다.`);
+  }
   return w;
 }
 
 export function buildListingContent(p: Product): ListingContent {
   const nameCandidates = makeNames(p);
+  const publicSpecs = p.specs.filter((s) => !isSellerOnlySpec(s.key));
   const keywords = dedupe(
-    tokenize([p.name, ...p.specs.flatMap((s) => [s.key, s.value]), ...p.options.map((o) => o.name)].join(" "))
+    tokenize([p.name, ...publicSpecs.flatMap((s) => [s.key, s.value]), ...p.options.map((o) => o.name)].join(" "))
   ).slice(0, 20);
   const tags = keywords.slice(0, 10);
 

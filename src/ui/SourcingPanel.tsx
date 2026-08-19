@@ -12,11 +12,28 @@ import {
 import { RISK_LABEL } from "../domain/riskCategory";
 import { formatKrw } from "../domain/money";
 import { SupplierCompare } from "./SupplierCompare";
+import {
+  buildSurveyList, parseMarketSamples, screenPriceGap, summarizeScreen,
+  GAP_LABEL, type ScreenResult,
+} from "../domain/screening";
+import { getSettings, feeProfileOf } from "../store/db";
+import { variablePctOf } from "../domain/fees";
+
+/** 스크리닝 결과 = 후보 + 가격공간 판정 */
+interface Screened {
+  j: SourcingJudgement;
+  s: ScreenResult;
+}
 
 export function SourcingPanel({ onBack }: { onBack: () => void }) {
   const [paste, setPaste] = useState("");
   const [sum, setSum] = useState<SourcingSummary | null>(null);
   const [msg, setMsg] = useState("");
+
+  // 2단계 — 시세 조사
+  const [survey, setSurvey] = useState("");
+  const [screened, setScreened] = useState<Screened[] | null>(null);
+  const [surveyMsg, setSurveyMsg] = useState("");
 
   const analyze = () => {
     const cands = parseCandidates(paste);
@@ -25,8 +42,44 @@ export function SourcingPanel({ onBack }: { onBack: () => void }) {
       return;
     }
     setSum(summarizeSourcing(cands.map((c) => judgeSourcing(c))));
+    setScreened(null);
     setMsg("");
     setPaste("");
+  };
+
+  /** 1차 통과분만 시세를 조사한다 — 걸러진 것까지 검색할 이유가 없다 */
+  const survivors = sum ? [...sum.good, ...sum.check] : [];
+
+  const copySurvey = async () => {
+    const text = buildSurveyList(survivors.map((j) => ({ key: j.key, keyword: j.name.slice(0, 30) })));
+    try {
+      await navigator.clipboard.writeText(text);
+      setSurveyMsg(`${survivors.length}개 조사 목록을 복사했습니다. 확장의 [📊 후보 시세 자동 조사]에 붙여넣고 시작하세요.`);
+    } catch {
+      setSurveyMsg("복사 실패 — 브라우저에서 클립보드를 허용해 주세요.");
+    }
+  };
+
+  const applySurvey = () => {
+    const samples = parseMarketSamples(survey);
+    if (!samples.length) {
+      setSurveyMsg("시세 결과가 아닙니다. 확장의 [결과 복사]로 받은 내용을 넣어주세요.");
+      return;
+    }
+    const feePct = variablePctOf(feeProfileOf("NAVER")) || 10;
+    const targetMarginPct = getSettings().targetMarginPct || 30;
+    const byKey = new Map(samples.map((s) => [s.key, s.prices]));
+    const rows: Screened[] = survivors.map((j) => ({
+      j,
+      s: screenPriceGap(
+        { landedCostKrw: j.landedCostKrw, feePct, minMarginPct: 15, targetMarginPct },
+        byKey.get(j.key) ?? []
+      ),
+    }));
+    rows.sort((a, b) => a.s.rank - b.s.rank);
+    setScreened(rows);
+    setSurvey("");
+    setSurveyMsg("");
   };
 
   return (
@@ -50,8 +103,98 @@ export function SourcingPanel({ onBack }: { onBack: () => void }) {
 
       {sum && <Result sum={sum} />}
 
+      {/* 2단계 — 소매 시세와 맞대본다. 여기서 대부분이 걸러진다 */}
+      {sum && survivors.length > 0 && (
+        <div className="card pad" style={{ borderColor: "var(--accent)" }}>
+          <div className="section-label">📊 소매 시세와 맞대보기 <span className="tiny muted">핵심</span></div>
+          <p className="hint" style={{ marginTop: 0 }}>
+            도매가 싸도 <b>소매가 이미 더 싸면</b> 팔 수 없습니다. 남은 {survivors.length}개의
+            시세를 한꺼번에 조사합니다.
+          </p>
+          <div className="watch-run">
+            <div className="watch-step">
+              <b>1</b> 조사 목록을 복사합니다
+              <div className="btn-row">
+                <button className="btn primary sm" onClick={copySurvey}>
+                  {survivors.length}개 조사 목록 복사
+                </button>
+              </div>
+            </div>
+            <div className="watch-step">
+              <b>2</b> 확장 → <b>📊 후보 시세 자동 조사</b> → 붙여넣고 <b>시세 조사 시작</b>
+              <div className="hint">상품마다 네이버 쇼핑이 열렸다 닫힙니다. 1개당 5~8초 걸립니다.</div>
+            </div>
+            <div className="watch-step">
+              <b>3</b> 결과를 붙여넣습니다
+              <textarea className="paste" rows={3} value={survey}
+                        onChange={(e) => setSurvey(e.target.value)}
+                        placeholder="##AISOS-MARKET## 로 시작하는 결과를 붙여넣기" />
+              <button className="btn primary sm" disabled={!survey.trim()} onClick={applySurvey}>결과 반영</button>
+            </div>
+          </div>
+          {surveyMsg && <div className="tiny" style={{ marginTop: 8 }}>{surveyMsg}</div>}
+        </div>
+      )}
+
+      {screened && <ScreenResultView rows={screened} />}
+
       <SupplierCompare />
     </div>
+  );
+}
+
+function ScreenResultView({ rows }: { rows: Screened[] }) {
+  const s = summarizeScreen(rows.map((r) => r.s));
+  const worth = rows.filter((r) => r.s.level === "ROOM" || r.s.level === "TIGHT");
+
+  return (
+    <>
+      <div className="card pad">
+        <div className="section-label">시세 대조 결과</div>
+        <div className="src-funnel">
+          <div><b>{s.total}</b><span>조사</span></div>
+          <div className="arw">→</div>
+          <div className="good"><b>{s.room}</b><span>여유 있음</span></div>
+          <div className="chk"><b>{s.tight}</b><span>상단만 가능</span></div>
+          <div className="skp"><b>{s.noRoom}</b><span>자리 없음</span></div>
+          {s.unknown > 0 && <div className="skp"><b>{s.unknown}</b><span>시세 미확인</span></div>}
+        </div>
+        <div className="hint" style={{ marginTop: 8 }}>
+          <b>자리 없음 {s.noRoom}개</b>는 도매가가 소매 시세보다 비싼 것들입니다. 열어볼 필요 없습니다.
+        </div>
+      </div>
+
+      {worth.length === 0 ? (
+        <div className="card pad center">
+          살아남은 후보가 없습니다. 다른 카테고리에서 다시 담아보세요.
+        </div>
+      ) : (
+        <div className="card pad">
+          <div className="section-label">🏆 오늘 볼 만한 것 {worth.length}개</div>
+          {worth.slice(0, 20).map(({ j, s: sc }) => (
+            <div key={j.key} className={"src-card " + (sc.level === "ROOM" ? "good" : "chk")}>
+              <div className="src-head">
+                <div className="src-name">{GAP_LABEL[sc.level].slice(0, 2)} {j.name}</div>
+                <div className="src-cost">매입 {formatKrw(j.landedCostKrw)}</div>
+              </div>
+              <div className="src-risk">{sc.text}</div>
+              {sc.band && (
+                <div className="comp-band" style={{ marginTop: 8 }}>
+                  <div className="comp-b"><span>매입</span><b>{formatKrw(j.landedCostKrw)}</b></div>
+                  <div className="comp-b"><span>최소가</span><b>{formatKrw(sc.minPriceKrw)}</b></div>
+                  <div className="comp-b"><span>목표가</span><b>{formatKrw(sc.targetPriceKrw)}</b></div>
+                  <div className="comp-b"><span>시장 중간</span><b>{formatKrw(sc.band.median)}</b></div>
+                  <div className="comp-b"><span>시장 75%</span><b>{formatKrw(sc.band.p75)}</b></div>
+                </div>
+              )}
+              <div className="btn-row">
+                <a className="btn sm primary" href={j.url} target="_blank" rel="noreferrer">도매처 열어 확인 ↗</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

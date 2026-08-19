@@ -43,6 +43,16 @@
     <button id="compCopy" class="wide" style="display:none">📋 복사 (앱 STEP3에 붙여넣기)</button>
   </details>
 
+  <details id="surveyBox" class="watch">
+    <summary>📊 후보 시세 자동 조사 (여러 상품 한꺼번에)</summary>
+    <div class="muted tiny">앱 소싱센터의 <b>시세 조사 목록</b>을 붙여넣으면, 상품마다 네이버 쇼핑을 열어 가격만 읽고 닫습니다.</div>
+    <textarea id="surveyList" rows="3" placeholder="##AISOS-SURVEY## 로 시작하는 목록을 붙여넣기"></textarea>
+    <button id="surveyRun" class="primary wide">시세 조사 시작</button>
+    <div class="muted tiny" id="surveyStatus"></div>
+    <textarea id="surveyOut" rows="4" style="display:none"></textarea>
+    <button id="surveyCopy" class="wide" style="display:none">📋 결과 복사 (앱에 붙여넣기)</button>
+  </details>
+
   <label>상품명</label>
   <input id="name" type="text" />
 

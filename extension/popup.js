@@ -627,4 +627,107 @@ $("compCopy").addEventListener("click", async () => {
   }
 });
 
+// ============================================================
+// 후보 시세 자동 조사
+//  ★ 검색을 사람 대신 눌러줄 뿐이다. 내 브라우저에서, 내가 시작을 눌렀을 때만.
+//  ★ 상품마다 탭 하나를 열고 가격만 읽고 바로 닫는다.
+// ============================================================
+
+function parseSurveyList(text) {
+  const H = "##AISOS-SURVEY##";
+  if (!text || text.indexOf(H) < 0) return [];
+  return text.slice(text.indexOf(H) + H.length)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const i = l.indexOf("|");
+      if (i < 0) return null;
+      return { key: l.slice(0, i).trim(), keyword: l.slice(i + 1).trim() };
+    })
+    .filter((x) => x && x.key && x.keyword);
+}
+
+/** 검색 결과에서 가격만 뽑는다 (상단 몇 개면 충분) */
+function priceProbe() {
+  const out = [];
+  const nodes = Array.from(document.querySelectorAll("li, div, article"));
+  for (const el of nodes) {
+    if (el.children.length > 12) continue;
+    const t = (el.innerText || "").replace(/\s+/g, " ").trim();
+    if (!t || t.length > 220) continue;
+    if (/광고|AD\b/.test(t)) continue;                // 광고 상품은 시세로 치지 않는다
+    const pm = t.match(/([\d,]{4,})\s*원/);
+    if (!pm) continue;
+    const p = parseInt(pm[1].replace(/,/g, ""), 10);
+    if (!p || p < 1000 || p > 3000000) continue;
+    let hasName = false;
+    el.querySelectorAll("a").forEach((a) => {
+      const s = (a.innerText || "").trim();
+      if (s.length >= 8) hasName = true;
+    });
+    if (!hasName) continue;
+    out.push(p);
+    if (out.length >= 20) break;
+  }
+  return out.length ? out : null;
+}
+
+async function surveyOne(keyword) {
+  const url = "https://search.shopping.naver.com/search/all?query=" + encodeURIComponent(keyword);
+  let tab = null;
+  try {
+    tab = await chrome.tabs.create({ url: url, active: false });
+    for (let i = 0; i < 24; i++) {
+      await sleep(500);
+      try {
+        const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: priceProbe });
+        const r = res && res[0] && res[0].result;
+        if (r && r.length >= 3) return r;
+      } catch (e) { /* 로딩 중 */ }
+    }
+    return [];
+  } catch (e) {
+    return [];
+  } finally {
+    if (tab && tab.id) { try { await chrome.tabs.remove(tab.id); } catch (e) {} }
+  }
+}
+
+$("surveyRun").addEventListener("click", async () => {
+  const items = parseSurveyList($("surveyList").value);
+  if (!items.length) {
+    $("surveyStatus").textContent = "조사 목록이 없습니다. 앱 소싱센터의 [시세 조사 목록 복사]를 누르세요.";
+    return;
+  }
+  $("surveyRun").disabled = true;
+  const out = ["##AISOS-MARKET##"];
+  let got = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    $("surveyStatus").textContent =
+      "조사 중 " + (i + 1) + "/" + items.length + " — " + items[i].keyword.slice(0, 18);
+    const prices = await surveyOne(items[i].keyword);
+    if (prices.length) got++;
+    out.push(items[i].key + "|" + prices.join(","));
+    await sleep(600);   // 사람이 훑는 속도로
+  }
+
+  $("surveyOut").value = out.join("\n");
+  $("surveyOut").style.display = "block";
+  $("surveyCopy").style.display = "block";
+  $("surveyStatus").textContent =
+    "완료 — " + got + "/" + items.length + "개 시세 확보. 결과를 복사해 앱에 붙여넣으세요.";
+  $("surveyRun").disabled = false;
+});
+
+$("surveyCopy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("surveyOut").value);
+    $("surveyStatus").textContent = "✅ 복사됨 — 앱 소싱센터에 붙여넣으세요.";
+  } catch (e) {
+    $("surveyStatus").textContent = "복사 실패 — 아래 내용을 직접 선택해 복사하세요.";
+  }
+});
+
 run();

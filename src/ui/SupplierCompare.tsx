@@ -80,7 +80,7 @@ export function SupplierCompare() {
           <div style={{ overflowX: "auto", marginTop: 10 }}>
             <table className="sup-result">
               <thead>
-                <tr><th>순위</th><th>공급처</th><th>매입원가(총)</th><th>실효단가</th><th>상태</th></tr>
+                <tr><th>순위</th><th>공급처</th><th>1주문 매입원가</th><th>개당 환산</th><th>상태</th></tr>
               </thead>
               <tbody>
                 {result.evals.map((e, i) => (
@@ -101,7 +101,7 @@ export function SupplierCompare() {
             </table>
           </div>
           <p className="hint" style={{ marginTop: 8 }}>
-            ※ 매입원가 = 공급가 × 최소구매수량 + 배송비 (고객 1주문 기준). 위탁 불가는 후보에서 제외됩니다.
+            ※ 1주문 매입원가 = 공급가 × 최소구매수량 + 배송비. 고객이 1개를 사도 이 금액이 나갑니다. 최소구매수량이 1이 아니면 "개당 환산"은 참고값일 뿐이고, 남는 수량은 재고가 됩니다. 위탁 불가는 후보에서 제외됩니다.
           </p>
         </div>
       )}

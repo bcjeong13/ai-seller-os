@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildListingContent } from "../listingContent";
+import { buildListingContent, isSellerOnlySpec } from "../listingContent";
 import { makeProduct, makeOption } from "../factory";
 import type { Product } from "../types";
 
@@ -75,5 +75,54 @@ describe("상세설명 생성 (§12 복원)", () => {
     const p = product({ name: "세계최초 100% 완벽 방수 매트" });
     const c = buildListingContent(p);
     expect(c.warnings.some((w) => w.includes("과대광고"))).toBe(true);
+  });
+});
+
+// ============================================================
+// ★ 셀러 전용 정보가 고객용 상세설명에 새면 안 된다.
+//   확장은 도매처 재고·최소구매수량·공급사까지 수집한다.
+//   그대로 내보내면 고객이 도매처를 알아내고 이탈한다.
+// ============================================================
+describe("셀러 전용 정보 차단", () => {
+  const sellerSpecs = [
+    { key: "재질", value: "실리콘" },
+    { key: "도매처 재고", value: "410,261개" },
+    { key: "최소구매수량", value: "1개" },
+    { key: "제조사", value: "크리어유통" },
+    { key: "모델명", value: "고리형UV우산" },
+  ];
+
+  it("셀러가 볼 항목을 가려낸다", () => {
+    expect(isSellerOnlySpec("도매처 재고")).toBe(true);
+    expect(isSellerOnlySpec("최소구매수량")).toBe(true);
+    expect(isSellerOnlySpec("제조사")).toBe(true);
+    expect(isSellerOnlySpec("재질")).toBe(false);
+    expect(isSellerOnlySpec("사이즈")).toBe(false);
+  });
+
+  it("상세설명 본문에 도매처 정보가 들어가지 않는다", () => {
+    const c = buildListingContent(product({ specs: sellerSpecs }));
+    expect(c.plainText).toContain("실리콘");
+    expect(c.plainText).not.toContain("410,261");
+    expect(c.plainText).not.toContain("크리어유통");
+    expect(c.plainText).not.toContain("최소구매수량");
+  });
+
+  it("키워드에도 섞이지 않는다", () => {
+    const c = buildListingContent(product({ specs: sellerSpecs }));
+    expect(c.keywords.some((k) => k.includes("크리어유통"))).toBe(false);
+  });
+
+  it("상품명 후보에 제조사·재고를 붙이지 않는다", () => {
+    const c = buildListingContent(product({ specs: sellerSpecs }));
+    c.nameCandidates.forEach((n) => {
+      expect(n).not.toContain("크리어유통");
+      expect(n).not.toContain("410,261");
+    });
+  });
+
+  it("무엇을 뺐는지 알려준다", () => {
+    const c = buildListingContent(product({ specs: sellerSpecs }));
+    expect(c.warnings.some((w) => w.includes("도매처가 드러납니다"))).toBe(true);
   });
 });
