@@ -486,38 +486,87 @@ $("watchCopy").addEventListener("click", async () => {
 // ============================================================
 
 function listProbe() {
-  const out = [];
-  const seen = new Set();
+  // ★ 상품 하나에 링크가 여러 개다 (이미지 링크 · 제목 링크 · 판매자 링크).
+  //   먼저 만난 링크를 쓰면 이미지 링크의 alt="상품이미지"가 이름이 된다.
+  //   그래서 같은 상품의 후보를 다 모아놓고 그중 제일 나은 것을 고른다.
 
-  document.querySelectorAll('a[href]').forEach((a) => {
-    const href = a.href || "";
-    // 도매꾹 상품 주소: /숫자
-    const m = href.match(/^https?:\/\/[^/]*domeggook\.com\/(\d{5,})/i);
+  // 상품명이 아니라 자리표시자인 것들
+  var GENERIC = /^(상품\s*이미지|이미지|썸네일|사진|대표\s*이미지|no\s*image|image|photo|thumbnail|product|상품|더보기|자세히|바로가기)$/i;
+
+  function cleanName(s) {
+    var t = (s || "").replace(/\s+/g, " ").trim();
+    if (!t) return "";
+    // 끝에 붙은 가격을 뗀다 — "… 노선도 보기 7,800원"
+    t = t.replace(/[\s|·,]*[\d,]{3,}\s*원\s*$/, "").trim();
+    // 앞뒤 홍보 대괄호
+    t = t.replace(/^\[[^\]]{0,20}\]\s*/, "").trim();
+    if (GENERIC.test(t)) return "";
+    if (/^[\d,.\s원%]+$/.test(t)) return "";   // 숫자·가격만 있는 것
+    if (t.length < 4) return "";
+    return t.slice(0, 80);
+  }
+
+  var byId = {};
+
+  document.querySelectorAll("a[href]").forEach(function (a) {
+    var m = (a.href || "").match(/^https?:\/\/[^/]*domeggook\.com\/(\d{5,})/i);
     if (!m) return;
-    const id = m[1];
-    if (seen.has(id)) return;
+    var id = m[1];
+    var rec = byId[id] || (byId[id] = { names: [], card: null });
 
-    // 카드 안에서 상품명과 가격을 찾는다
-    const card = a.closest("li, div, td") || a;
-    const text = (card.innerText || "").replace(/\s+/g, " ").trim();
-    if (!text) return;
+    rec.names.push(a.getAttribute("title") || "");
+    rec.names.push(a.textContent || "");
+    var img = a.querySelector("img[alt]");
+    if (img) rec.names.push(img.getAttribute("alt") || "");
 
-    let name = (a.getAttribute("title") || a.innerText || "").replace(/\s+/g, " ").trim();
-    if (name.length < 4) {
-      const img = card.querySelector("img[alt]");
-      if (img) name = (img.getAttribute("alt") || "").trim();
+    // 카드는 상품 하나를 담은 가장 큰 덩어리로 잡는다 (가격을 찾기 위해)
+    var card = a.closest("li, tr, article, .item, .prd, div");
+    if (card) {
+      var len = (card.innerText || "").length;
+      if (len < 2000 && (!rec.card || len > (rec.card.innerText || "").length)) rec.card = card;
     }
-    if (!name || name.length < 4) return;
-
-    const pm = text.match(/([\d,]{3,})\s*원/);
-    const price = pm ? parseInt(pm[1].replace(/,/g, ""), 10) : 0;
-    if (!price) return;
-
-    seen.add(id);
-    out.push({ name: name.slice(0, 60), price: price, url: "https://www.domeggook.com/" + id });
   });
 
-  return out;
+  var out = [];
+  var noName = 0;
+
+  Object.keys(byId).forEach(function (id) {
+    var rec = byId[id];
+
+    // 이름 후보 중 가장 긴 것 — 제목 링크가 이미지 alt보다 길다
+    var name = "";
+    for (var i = 0; i < rec.names.length; i++) {
+      var c = cleanName(rec.names[i]);
+      if (c.length > name.length) name = c;
+    }
+
+    var text = rec.card ? (rec.card.innerText || "").replace(/\s+/g, " ") : "";
+
+    // 이름을 못 찾으면 카드 본문에서 가장 그럴듯한 한 줄을 쓴다
+    if (!name && text) {
+      var lines = (rec.card.innerText || "").split("\n");
+      for (var j = 0; j < lines.length; j++) {
+        var c2 = cleanName(lines[j]);
+        if (c2.length > name.length) name = c2;
+      }
+    }
+    if (!name) { noName++; return; }
+
+    // 배송비를 판매가로 잘못 읽지 않도록 '배송' 뒤의 금액은 건너뛴다
+    var price = 0;
+    var re = /([\d,]{3,})\s*원/g, mm;
+    while ((mm = re.exec(text))) {
+      var before = text.slice(Math.max(0, mm.index - 12), mm.index);
+      if (/배송|반품|교환/.test(before)) continue;
+      price = parseInt(mm[1].replace(/,/g, ""), 10);
+      break;
+    }
+    if (!price) return;
+
+    out.push({ name: name, price: price, url: "https://www.domeggook.com/" + id });
+  });
+
+  return { items: out, noName: noName };
 }
 
 $("listRun").addEventListener("click", async () => {
@@ -525,7 +574,8 @@ $("listRun").addEventListener("click", async () => {
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const res = await chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, func: listProbe });
-    const items = (res && res[0] && res[0].result) || [];
+    const r = (res && res[0] && res[0].result) || { items: [], noName: 0 };
+    const items = r.items || [];
     if (!items.length) {
       $("listStatus").textContent = "상품을 찾지 못했습니다. 도매꾹 검색 결과 화면에서 눌러주세요.";
       return;
@@ -535,7 +585,10 @@ $("listRun").addEventListener("click", async () => {
     $("listOut").value = ["##AISOS-LIST##"].concat(lines).join("\n");
     $("listOut").style.display = "block";
     $("listCopy").style.display = "block";
-    $("listStatus").textContent = items.length + "개 담았습니다. 복사해서 앱 소싱센터에 넣으세요.";
+    // 이름을 못 읽은 것은 조용히 버리지 않고 몇 개인지 알린다
+    $("listStatus").textContent =
+      items.length + "개 담았습니다. 복사해서 앱 소싱센터에 넣으세요." +
+      (r.noName ? " (이름을 못 읽은 " + r.noName + "개는 뺐습니다)" : "");
   } catch (e) {
     $("listStatus").textContent = "이 화면에서는 읽을 수 없습니다.";
   }
