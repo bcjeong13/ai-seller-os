@@ -49,6 +49,10 @@ export interface SourcingJudgement {
   url: string;
   level: SourcingLevel;
   risk: RiskInfo;
+  /** 목록에서 읽은 원본 값 — 상품으로 옮길 때 그대로 쓴다 */
+  supplyPriceKrw: number;
+  shippingKrw: number;
+  minOrderQty: number;
   /** 매입 원가 = 공급가 × 최소구매수량 + 배송비 */
   landedCostKrw: number;
   /** 배송비가 매입에서 차지하는 비율(%) */
@@ -102,6 +106,7 @@ export function judgeSourcing(
   if (!c.name || c.supplyPriceKrw <= 0) {
     return {
       key: c.key, name: c.name || "(이름 없음)", url: c.url, level: "SKIP", risk,
+      supplyPriceKrw: c.supplyPriceKrw, shippingKrw: c.shippingKrw, minOrderQty: qty,
       landedCostKrw: landed, shippingSharePct: share, shippingKnown: c.shippingKrw > 0,
       reasons: [{ ok: false, text: "공급가를 읽지 못했습니다 — 판단하지 않습니다" }],
       skipReason: "NO_DATA", rank: 999,
@@ -157,11 +162,20 @@ export function judgeSourcing(
   }
 
   // 정렬용 순위 — 낮을수록 먼저 본다. 화면에 숫자로 노출하지 않는다.
+  //
+  // ★ 배송비를 모르면 share가 0이 되어 오히려 1등으로 올라오던 버그가 있었다.
+  //   확인 실패를 좋은 것으로 처리하면 안 된다 — 아는 것을 먼저 본다.
   const RISK_W: Record<string, number> = { LOW: 0, CHECK: 15, HIGH: 40 };
-  const rank = ORDER[level] * 250 + Math.round(share) + (qty > 1 ? 20 : 0) + RISK_W[risk.level];
+  const rank =
+    ORDER[level] * 250 +
+    (shippingKnown ? Math.round(share) : 60) +   // 미확인은 배송비 60% 수준으로 취급
+    (qty > 1 ? 20 : 0) +
+    RISK_W[risk.level] +
+    (c.optionCount > rules.maxOptions ? 10 : 0);
 
   return {
     key: c.key, name: c.name, url: c.url,
+    supplyPriceKrw: c.supplyPriceKrw, shippingKrw: c.shippingKrw, minOrderQty: qty,
     level, risk, landedCostKrw: landed, shippingSharePct: share, shippingKnown,
     reasons, skipReason: skip, rank,
   };
@@ -176,14 +190,27 @@ export interface SourcingSummary {
   good: SourcingJudgement[];
   check: SourcingJudgement[];
   skipped: SourcingJudgement[];
+  /** 살아남은 것 전부를 추천순으로 — 화면은 이걸 쓴다 */
+  ranked: SourcingJudgement[];
   /** 제외 사유별 건수 — 많은 순 */
   skipCounts: { reason: SkipReason; label: string; count: number }[];
 }
 
+/**
+ * 무엇을 먼저 보여줄지.
+ * 1) 걸릴 게 없는 것  2) 배송비를 아는 것  3) 배송비 비중이 낮은 것
+ * 4) 1개씩 발주 가능한 것  5) 인증 부담이 없는 것
+ */
+export const SORT_NOTE =
+  "걸릴 게 없고 · 배송비를 알고 · 배송비 비중이 낮고 · 1개씩 발주되는 것부터 보여줍니다";
+
 export function summarizeSourcing(list: SourcingJudgement[]): SourcingSummary {
-  const good = list.filter((x) => x.level === "GOOD").sort((a, b) => a.rank - b.rank);
-  const check = list.filter((x) => x.level === "CHECK").sort((a, b) => a.rank - b.rank);
+  const byRank = (a: SourcingJudgement, b: SourcingJudgement) =>
+    a.rank - b.rank || a.landedCostKrw - b.landedCostKrw;
+  const good = list.filter((x) => x.level === "GOOD").sort(byRank);
+  const check = list.filter((x) => x.level === "CHECK").sort(byRank);
   const skipped = list.filter((x) => x.level === "SKIP");
+  const ranked = [...good, ...check].sort(byRank);
 
   const counts = new Map<SkipReason, number>();
   for (const s of skipped) {
@@ -193,7 +220,7 @@ export function summarizeSourcing(list: SourcingJudgement[]): SourcingSummary {
 
   return {
     total: list.length,
-    good, check, skipped,
+    good, check, skipped, ranked,
     skipCounts: [...counts.entries()]
       .map(([reason, count]) => ({ reason, label: SKIP_LABEL[reason], count }))
       .sort((a, b) => b.count - a.count),

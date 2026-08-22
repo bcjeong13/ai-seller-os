@@ -109,7 +109,27 @@ function ProductDetail({ product, onBack, onListing }:
         )}
       </div>
 
-      {/* 손익 3단 */}
+      {/* 판매가가 없으면 손익을 보여주지 않는다 — 0원으로 계산하면 무엇이든 손해로 나온다 */}
+      {product.price.buyerPaidKrw <= 0 ? (
+        <div className="card pad" style={{ borderColor: "var(--accent)" }}>
+          <div className="section-label">📌 다음에 할 일</div>
+          <ol className="howto">
+            <li>
+              <a href={product.sourceUrl} target="_blank" rel="noreferrer">도매처 상품페이지</a>를 엽니다
+              {" "}— 지금은 목록에서 읽은 이름·공급가·배송비만 들어와 있습니다
+            </li>
+            <li>확장 → <b>📋 복사</b> → 옵션·스펙·반품정책까지 가져옵니다</li>
+            <li>소싱센터에서 본 시세를 보고 <b>판매가</b>를 정합니다</li>
+            <li>정해지면 손익과 등록 검토가 여기에 나타납니다</li>
+          </ol>
+          <div className="hint">
+            매입원가 {formatKrw(product.cost.supplyPriceKrw * Math.max(1, product.cost.minOrderQty ?? 1) + product.cost.shippingKrw)}
+            {" "}— 공급가 {formatKrw(product.cost.supplyPriceKrw)}
+            {(product.cost.minOrderQty ?? 1) > 1 && ` × ${product.cost.minOrderQty}개`}
+            {" + 배송비 "}{formatKrw(product.cost.shippingKrw)}
+          </div>
+        </div>
+      ) : (
       <div className="card pad">
         <div className="section-label">예상 손익</div>
         <div className="money-grid">
@@ -123,8 +143,10 @@ function ProductDetail({ product, onBack, onListing }:
           반품 충당 {formatKrw(sc.expected.returnReserveKrw)} · 손익분기 {formatKrw(sc.expected.breakEvenPriceKrw)}
         </div>
       </div>
+      )}
 
-      {/* 옵션별 손익 */}
+      {/* 옵션별 손익 — 판매가가 있어야 뜻이 있다 */}
+      {product.price.buyerPaidKrw > 0 && (
       <div className="card pad">
         <div className="section-label">옵션별 손익 — {summarizeOptions(opt)}</div>
         <table className="opt-table">
@@ -148,6 +170,7 @@ function ProductDetail({ product, onBack, onListing }:
           </div>
         )}
       </div>
+      )}
 
       {/* 마켓 등록 */}
       <div className="card pad">

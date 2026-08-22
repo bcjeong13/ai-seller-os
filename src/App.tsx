@@ -90,7 +90,10 @@ export function App() {
           <ProductPanel openId={view.id} onBack={() => go({ v: "today" })}
                         onListing={(id) => go({ v: "listing", productId: id })} />
         )}
-        {view.v === "sourcing" && <SourcingPanel onBack={() => go({ v: "today" })} />}
+        {view.v === "sourcing" && (
+          <SourcingPanel onBack={() => go({ v: "today" })}
+                         onOpenProduct={(id) => go({ v: "products", id })} />
+        )}
         {view.v === "settings" && <SettingsPanel onBack={() => go({ v: "today" })} />}
       </main>
     </div>

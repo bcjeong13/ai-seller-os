@@ -153,3 +153,51 @@ describe("후보 목록 파싱", () => {
     expect(parseCandidates(`${LIST_HEADER}\n이름만|1000`)).toEqual([]);
   });
 });
+
+describe("추천순 정렬", () => {
+  const c = (o: Partial<SourcingCandidate>): SourcingCandidate => ({
+    key: "k", name: "일반 수납함", supplyPriceKrw: 9000, shippingKrw: 2500,
+    minOrderQty: 1, optionCount: 2, url: "u", ...o,
+  });
+
+  it("★ 배송비를 모르는 상품이 아는 상품보다 앞에 오면 안 된다", () => {
+    const known = judgeSourcing(c({ key: "a", shippingKrw: 2500 }));
+    const unknown = judgeSourcing(c({ key: "b", shippingKrw: 0 }));
+    expect(known.rank).toBeLessThan(unknown.rank);
+  });
+
+  it("배송비 비중이 낮을수록 앞에 온다", () => {
+    const light = judgeSourcing(c({ key: "a", shippingKrw: 1000 }));
+    const heavy = judgeSourcing(c({ key: "b", shippingKrw: 3500 }));
+    expect(light.rank).toBeLessThan(heavy.rank);
+  });
+
+  it("1개씩 되는 것이 묶음보다 앞에 온다", () => {
+    const one = judgeSourcing(c({ key: "a", minOrderQty: 1 }));
+    const pack = judgeSourcing(c({ key: "b", minOrderQty: 2 }));
+    expect(one.rank).toBeLessThan(pack.rank);
+  });
+
+  it("걸릴 게 없는 것이 조건부보다 항상 앞에 온다", () => {
+    const s = summarizeSourcing([
+      judgeSourcing(c({ key: "pack", minOrderQty: 2, shippingKrw: 500 })),  // CHECK
+      judgeSourcing(c({ key: "clean", shippingKrw: 2500 })),                // GOOD
+    ]);
+    expect(s.ranked[0].key).toBe("clean");
+  });
+
+  it("걸러진 것은 추천 목록에 들어가지 않는다", () => {
+    const s = summarizeSourcing([
+      judgeSourcing(c({ key: "cheap", supplyPriceKrw: 900 })),   // SKIP
+      judgeSourcing(c({ key: "ok" })),
+    ]);
+    expect(s.ranked.map((x) => x.key)).toEqual(["ok"]);
+  });
+
+  it("상품으로 옮길 수 있게 원본 값을 들고 있는다", () => {
+    const j = judgeSourcing(c({ supplyPriceKrw: 9000, shippingKrw: 2500, minOrderQty: 2 }));
+    expect(j.supplyPriceKrw).toBe(9000);
+    expect(j.shippingKrw).toBe(2500);
+    expect(j.minOrderQty).toBe(2);
+  });
+});

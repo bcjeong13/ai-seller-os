@@ -55,26 +55,38 @@ export function healthOf(
   const checks: HealthCheck[] = [];
   const unknown: string[] = [];
 
+  // ★ 판매가를 아직 정하지 않은 초안은 손익을 판단하지 않는다.
+  //   값이 없는 것과 손해가 나는 것은 다르다. 0원으로 계산하면 무엇이든 손해로 나온다.
+  const priceSet = (product.price.buyerPaidKrw || 0) > 0;
+
   // 1) 마진
   const grade = currentGrade(product, feeProfile);
-  checks.push({
-    label: "마진",
-    level: grade === "LOSS" || grade === "BLOCKED" ? "RISK"
-         : grade === "DANGER" || grade === "WARNING" ? "ATTENTION" : "STABLE",
-    detail: grade === "LOSS" ? "팔면 손해입니다" : grade === "SAFE" ? "여유 있습니다" : "최소 기준에 가깝습니다",
-  });
+  if (!priceSet) {
+    checks.push({ label: "마진", level: "ATTENTION", detail: "판매가를 아직 정하지 않았습니다" });
+  } else {
+    checks.push({
+      label: "마진",
+      level: grade === "LOSS" || grade === "BLOCKED" ? "RISK"
+           : grade === "DANGER" || grade === "WARNING" ? "ATTENTION" : "STABLE",
+      detail: grade === "LOSS" ? "팔면 손해입니다" : grade === "SAFE" ? "여유 있습니다" : "최소 기준에 가깝습니다",
+    });
+  }
 
   // 2) 옵션 위험
   const opt = computeOptionProfits(product, feeProfile);
-  checks.push({
-    label: "옵션",
-    level: opt.lossCount > 0 ? "RISK" : opt.belowMinCount > 0 ? "ATTENTION" : "STABLE",
-    detail: opt.lossCount > 0
-      ? `${opt.totalCount}개 중 ${opt.lossCount}개가 팔면 손해`
-      : opt.belowMinCount > 0
-        ? `${opt.totalCount}개 중 ${opt.belowMinCount}개가 최소 마진 미달`
-        : `${opt.totalCount}개 모두 정상`,
-  });
+  if (!priceSet) {
+    unknown.push("옵션별 손익");
+  } else {
+    checks.push({
+      label: "옵션",
+      level: opt.lossCount > 0 ? "RISK" : opt.belowMinCount > 0 ? "ATTENTION" : "STABLE",
+      detail: opt.lossCount > 0
+        ? `${opt.totalCount}개 중 ${opt.lossCount}개가 팔면 손해`
+        : opt.belowMinCount > 0
+          ? `${opt.totalCount}개 중 ${opt.belowMinCount}개가 최소 마진 미달`
+          : `${opt.totalCount}개 모두 정상`,
+    });
+  }
 
   // 3) 공급가 안정성
   const base = product.baselineCost.supplyPriceKrw || 0;
@@ -107,14 +119,17 @@ export function healthOf(
     detail: stale ? "24시간 넘게 확인 안 함" : "최근에 확인함",
   });
 
-  // 6) 배송비 비중
-  const revenue = product.price.buyerPaidKrw || 1;
-  const shipRatio = (product.cost.shippingKrw / revenue) * 100;
-  checks.push({
-    label: "배송비 비중",
-    level: shipRatio >= 30 ? "RISK" : shipRatio >= 20 ? "ATTENTION" : "STABLE",
-    detail: `판매가의 ${shipRatio.toFixed(0)}%`,
-  });
+  // 6) 배송비 비중 — 판매가가 있어야 비중을 낼 수 있다
+  if (!priceSet) {
+    unknown.push("배송비 비중");
+  } else {
+    const shipRatio = (product.cost.shippingKrw / product.price.buyerPaidKrw) * 100;
+    checks.push({
+      label: "배송비 비중",
+      level: shipRatio >= 30 ? "RISK" : shipRatio >= 20 ? "ATTENTION" : "STABLE",
+      detail: `판매가의 ${shipRatio.toFixed(0)}%`,
+    });
+  }
 
   // 7) 규제
   checks.push({
@@ -133,7 +148,8 @@ export function healthOf(
     : "STABLE";
 
   const summary =
-    level === "RISK" ? "지금 손볼 곳이 있습니다"
+    !priceSet ? "소싱센터에서 담은 초안입니다 — 확장으로 상세를 수집하고 판매가를 정하세요"
+    : level === "RISK" ? "지금 손볼 곳이 있습니다"
     : level === "ATTENTION" ? "지켜볼 부분이 있습니다"
     : "정상입니다";
 

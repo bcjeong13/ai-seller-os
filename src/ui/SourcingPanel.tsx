@@ -6,9 +6,11 @@
 
 import { useState } from "react";
 import {
-  parseCandidates, judgeSourcing, summarizeSourcing,
+  parseCandidates, judgeSourcing, summarizeSourcing, SORT_NOTE,
   type SourcingJudgement, type SourcingSummary,
 } from "../domain/sourcing";
+import { makeProduct } from "../domain/factory";
+import { addProduct, getProducts } from "../store/db";
 import { RISK_LABEL } from "../domain/riskCategory";
 import { formatKrw } from "../domain/money";
 import { SupplierCompare } from "./SupplierCompare";
@@ -25,7 +27,36 @@ interface Screened {
   s: ScreenResult;
 }
 
-export function SourcingPanel({ onBack }: { onBack: () => void }) {
+/**
+ * 후보를 상품으로 옮긴다.
+ * 목록에서 아는 것(이름·공급가·배송비·최소수량·주소)만 채운 초안이다.
+ * 옵션·스펙·반품정책은 확장으로 상세 페이지를 수집해야 채워진다.
+ */
+function startProduct(j: SourcingJudgement): string {
+  const p = makeProduct({
+    name: j.name,
+    sourceUrl: j.url,
+    supplierName: "도매꾹",
+    marketplace: "NAVER",
+    listPriceKrw: 0,          // 시세를 보고 정한다 — 지금 짐작하지 않는다
+    supplyPriceKrw: j.supplyPriceKrw,
+    shippingKrw: j.shippingKrw,
+    minOrderQty: j.minOrderQty,
+  });
+  addProduct(p);
+  return p.id;
+}
+
+/** 같은 도매처 주소로 이미 담은 상품이 있는가 — 중복 등록을 막는다 */
+function existingIdFor(url: string): string | undefined {
+  if (!url) return undefined;
+  return getProducts().find((p) => p.sourceUrl === url)?.id;
+}
+
+export function SourcingPanel({ onBack, onOpenProduct }: {
+  onBack: () => void;
+  onOpenProduct: (id: string) => void;
+}) {
   const [paste, setPaste] = useState("");
   const [sum, setSum] = useState<SourcingSummary | null>(null);
   const [msg, setMsg] = useState("");
@@ -101,7 +132,7 @@ export function SourcingPanel({ onBack }: { onBack: () => void }) {
         {msg && <div className="tiny" style={{ marginTop: 8, color: "var(--loss)" }}>{msg}</div>}
       </div>
 
-      {sum && <Result sum={sum} />}
+      {sum && <Result sum={sum} onOpenProduct={onOpenProduct} />}
 
       {/* 2단계 — 소매 시세와 맞대본다. 여기서 대부분이 걸러진다 */}
       {sum && survivors.length > 0 && (
@@ -136,14 +167,14 @@ export function SourcingPanel({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {screened && <ScreenResultView rows={screened} />}
+      {screened && <ScreenResultView rows={screened} onOpenProduct={onOpenProduct} />}
 
       <SupplierCompare />
     </div>
   );
 }
 
-function ScreenResultView({ rows }: { rows: Screened[] }) {
+function ScreenResultView({ rows, onOpenProduct }: { rows: Screened[]; onOpenProduct: (id: string) => void }) {
   const s = summarizeScreen(rows.map((r) => r.s));
   const worth = rows.filter((r) => r.s.level === "ROOM" || r.s.level === "TIGHT");
 
@@ -188,7 +219,16 @@ function ScreenResultView({ rows }: { rows: Screened[] }) {
                 </div>
               )}
               <div className="btn-row">
-                <a className="btn sm primary" href={j.url} target="_blank" rel="noreferrer">도매처 열어 확인 ↗</a>
+                {existingIdFor(j.url) ? (
+                  <button className="btn sm primary" onClick={() => onOpenProduct(existingIdFor(j.url)!)}>
+                    담아둔 상품 열기 →
+                  </button>
+                ) : (
+                  <button className="btn sm primary" onClick={() => onOpenProduct(startProduct(j))}>
+                    ＋ 상품으로 담기
+                  </button>
+                )}
+                <a className="btn sm" href={j.url} target="_blank" rel="noreferrer">도매처 열어 확인 ↗</a>
               </div>
             </div>
           ))}
@@ -198,7 +238,7 @@ function ScreenResultView({ rows }: { rows: Screened[] }) {
   );
 }
 
-function Result({ sum }: { sum: SourcingSummary }) {
+function Result({ sum, onOpenProduct }: { sum: SourcingSummary; onOpenProduct: (id: string) => void }) {
   return (
     <>
       <div className="card pad">
@@ -234,23 +274,36 @@ function Result({ sum }: { sum: SourcingSummary }) {
         </div>
       ) : (
         <div className="card pad">
-          <div className="section-label">더 볼 만한 것 {sum.good.length + sum.check.length}개</div>
+          <div className="section-label">
+            더 볼 만한 것 {sum.ranked.length}개 <span className="tiny muted">추천순</span>
+          </div>
           <p className="hint" style={{ marginTop: 0 }}>
-            아직 <b>추천이 아닙니다.</b> 배송비·최소구매수량·시장가를 확인해야 판단이 끝납니다.
+            {SORT_NOTE}. 아직 <b>추천이 아닙니다</b> — 시장가를 확인해야 판단이 끝납니다.
           </p>
-          {[...sum.good, ...sum.check].slice(0, 30).map((j) => <Card key={j.key} j={j} />)}
+          {sum.ranked.slice(0, 30).map((j, i) => (
+            <Card key={j.key} j={j} order={i + 1} onOpenProduct={onOpenProduct} />
+          ))}
         </div>
       )}
     </>
   );
 }
 
-function Card({ j }: { j: SourcingJudgement }) {
+function Card({ j, order, onOpenProduct }: {
+  j: SourcingJudgement;
+  order: number;
+  onOpenProduct: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const existing = existingIdFor(j.url);
+
   return (
     <div className={"src-card " + (j.level === "GOOD" ? "good" : "chk")}>
       <div className="src-head">
-        <div className="src-name">{j.level === "GOOD" ? "🟢" : "🟡"} {j.name}</div>
+        <div className="src-name">
+          <span className="src-no">{order}</span>
+          {j.level === "GOOD" ? "🟢" : "🟡"} {j.name}
+        </div>
         <div className="src-cost">{formatKrw(j.landedCostKrw)}{!j.shippingKnown && " +배송비"}</div>
       </div>
       <div className="src-risk">{RISK_LABEL[j.risk.level]} · {j.risk.category}</div>
@@ -267,9 +320,19 @@ function Card({ j }: { j: SourcingJudgement }) {
       )}
 
       <div className="btn-row">
+        {existing ? (
+          <button className="btn sm primary" onClick={() => onOpenProduct(existing)}>
+            담아둔 상품 열기 →
+          </button>
+        ) : (
+          <button className="btn sm primary" onClick={() => onOpenProduct(startProduct(j))}>
+            ＋ 상품으로 담기
+          </button>
+        )}
         <a className="btn sm" href={j.url} target="_blank" rel="noreferrer">도매처 열기 ↗</a>
         <button className="btn sm" onClick={() => setOpen((v) => !v)}>{open ? "접기" : "이유 보기"}</button>
       </div>
+      {existing && <div className="tiny muted" style={{ marginTop: 6 }}>이미 담은 상품입니다</div>}
     </div>
   );
 }
