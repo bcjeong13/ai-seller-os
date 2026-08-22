@@ -11,6 +11,15 @@ import {
 } from "../domain/sourcing";
 import { makeProduct } from "../domain/factory";
 import { addProduct, getProducts } from "../store/db";
+import {
+  labelOfList, idFromUrl, dayKeyOf, diffSnapshots, readinessOf, relatedKeywords,
+  categoryScores, SIGNAL_LABEL, type TrendSignal, type ListSnapshot,
+} from "../domain/trend";
+import {
+  saveSnapshot, previousSnapshot, observationOf, recordSourcingRun,
+  daysCollected, getSourcingRuns, subscribeTrend,
+} from "../store/trendStore";
+import { useEffect, useReducer } from "react";
 import { RISK_LABEL } from "../domain/riskCategory";
 import { formatKrw } from "../domain/money";
 import { SupplierCompare } from "./SupplierCompare";
@@ -61,6 +70,11 @@ export function SourcingPanel({ onBack, onOpenProduct }: {
   const [sum, setSum] = useState<SourcingSummary | null>(null);
   const [msg, setMsg] = useState("");
 
+  // 레이더 — 어제와 오늘의 차이
+  const [diff, setDiff] = useState<{
+    label: string; signals: TrendSignal[]; before?: ListSnapshot;
+  } | null>(null);
+
   // 2단계 — 시세 조사
   const [survey, setSurvey] = useState("");
   const [screened, setScreened] = useState<Screened[] | null>(null);
@@ -72,10 +86,36 @@ export function SourcingPanel({ onBack, onOpenProduct }: {
       setMsg("후보 목록이 아닙니다. 확장의 [이 화면의 상품 담기] → [후보 복사]로 받은 내용을 넣어주세요.");
       return;
     }
-    setSum(summarizeSourcing(cands.map((c) => judgeSourcing(c))));
+    const s = summarizeSourcing(cands.map((c) => judgeSourcing(c)));
+    setSum(s);
     setScreened(null);
     setMsg("");
     setPaste("");
+
+    // ★ 붙여넣은 목록을 그대로 오늘의 스냅샷으로 남긴다.
+    //   따로 버튼을 만들지 않는다 — 이미 하는 일에 얹으면 사용자가 잊지 않는다.
+    const at = Date.now();
+    const label = labelOfList(cands.map((c) => c.name));
+    const before = previousSnapshot(label, dayKeyOf(at));
+    const today = saveSnapshot({
+      at, label,
+      // ★ 대조용 id는 날이 바뀌어도 같아야 한다.
+      //   c.key는 목록에서의 자리(c0, c1…)라 내일이면 다른 상품을 가리킨다.
+      //   상품 번호 → 주소 순으로 쓰고, 둘 다 없으면 담지 않는다.
+      items: cands
+        .map((c, r) => ({
+          i: idFromUrl(c.url) || c.url || "", p: c.supplyPriceKrw, r, n: c.name, u: c.url,
+        }))
+        .filter((x) => x.i),
+    });
+    const obs = observationOf(label);
+    setDiff({ label, signals: diffSnapshots(today, before, obs.firstSeen, obs.days), before });
+
+    recordSourcingRun({
+      at, label,
+      total: s.total, good: s.good.length, check: s.check.length, skip: s.skipped.length,
+      topSkip: s.skipCounts[0]?.label,
+    });
   };
 
   /** 1차 통과분만 시세를 조사한다 — 걸러진 것까지 검색할 이유가 없다 */
@@ -118,6 +158,8 @@ export function SourcingPanel({ onBack, onOpenProduct }: {
       <button className="back" onClick={onBack}>← 오늘 할 일</button>
       <h2 className="work-title">소싱센터</h2>
 
+      <RadarCard />
+
       <div className="card pad">
         <div className="section-label">🔎 후보 가져오기</div>
         <ol className="howto">
@@ -131,6 +173,8 @@ export function SourcingPanel({ onBack, onOpenProduct }: {
         <button className="btn primary" disabled={!paste.trim()} onClick={analyze}>분석하기</button>
         {msg && <div className="tiny" style={{ marginTop: 8, color: "var(--loss)" }}>{msg}</div>}
       </div>
+
+      {diff && <DiffCard label={diff.label} signals={diff.signals} before={diff.before} />}
 
       {sum && <Result sum={sum} onOpenProduct={onOpenProduct} />}
 
@@ -170,6 +214,138 @@ export function SourcingPanel({ onBack, onOpenProduct }: {
       {screened && <ScreenResultView rows={screened} onOpenProduct={onOpenProduct} />}
 
       <SupplierCompare />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// 소싱 레이더
+//
+// ★ 추천하지 않는다. "무엇이 달라졌는가"만 보여주고,
+//   판단은 아래 1차 필터 → 시세 대조가 한다.
+// ------------------------------------------------------------
+
+function RadarCard() {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => subscribeTrend(bump), []);
+
+  const products = getProducts();
+  const scores = categoryScores(getSourcingRuns());
+  const keywords = relatedKeywords(products, 6);
+
+  if (!products.length && !scores.length) return null;
+
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        🛰️ 소싱 레이더 <span className="tiny muted">무엇이 달라졌는가</span>
+      </div>
+      <p className="hint" style={{ marginTop: 0 }}>
+        여기 나온 것은 <b>추천이 아닙니다.</b> 시장에서 움직임이 생긴 곳일 뿐이고,
+        팔지 말지는 아래 1차 필터와 시세 대조가 정합니다.
+      </p>
+
+      {scores.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 16 }}>
+            📊 내 심사 성적표 <span className="tiny muted">지금까지 담아본 결과</span>
+          </div>
+          <div className="radar-scores">
+            {scores.map((s) => (
+              <div key={s.label} className={"rscore " + (s.passRatePct >= 25 ? "good" : s.passRatePct >= 10 ? "chk" : "skp")}>
+                <div className="rs-head">
+                  <b>{s.label}</b>
+                  <span className="tiny muted">{s.total}개 조사 · {s.runs}회</span>
+                </div>
+                <div className="rs-note">{s.note}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {keywords.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 16 }}>
+            🧭 내 카테고리 주변 <span className="tiny muted">검색어 제안</span>
+          </div>
+          <p className="hint" style={{ marginTop: 0 }}>
+            내가 파는 상품의 낱말입니다. <b>연관 상품을 찾아주는 게 아니라</b> 이 검색어로
+            직접 찾아보시라는 뜻입니다. 낯선 분야보다 아는 분야의 옆 상품이 다루기 쉽습니다.
+          </p>
+          <div className="kw-row">
+            {keywords.map((k) => (
+              <a key={k.keyword} className="kw-chip"
+                 href={"https://domeggook.com/main/search/index.php?sc_word=" + encodeURIComponent(k.keyword)}
+                 target="_blank" rel="noreferrer"
+                 title={k.examples.join(" / ")}>
+                {k.keyword}
+                <span className="tiny muted"> {k.fromCount}</span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DiffCard({ label, signals, before }: {
+  label: string; signals: TrendSignal[]; before?: ListSnapshot;
+}) {
+  const days = daysCollected(label);
+  const ready = readinessOf(days);
+  const news = signals.filter((s) => s.kind === "NEW");
+  const drops = signals.filter((s) => s.kind === "PRICE_DROP");
+  const rises = signals.filter((s) => s.kind === "PRICE_RISE");
+  const ups = signals.filter((s) => s.kind === "RANK_UP");
+
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        「{label}」 목록의 변화 <span className="tiny muted">{days}일치</span>
+      </div>
+
+      {!before ? (
+        <div className="hint">{ready.note}</div>
+      ) : (
+        <>
+          <div className="hint" style={{ marginTop: 0 }}>
+            {before.day}과 견줬습니다. {ready.note}
+          </div>
+          {signals.length === 0 ? (
+            <div className="hint" style={{ marginTop: 8 }}>달라진 것이 없습니다.</div>
+          ) : (
+            <div className="radar-groups">
+              <SignalGroup kind="NEW" list={news} />
+              <SignalGroup kind="PRICE_DROP" list={drops} />
+              <SignalGroup kind="RANK_UP" list={ups} />
+              <SignalGroup kind="PRICE_RISE" list={rises} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SignalGroup({ kind, list }: { kind: TrendSignal["kind"]; list: TrendSignal[] }) {
+  if (!list.length) return null;
+  return (
+    <div className="rgroup">
+      <div className="rg-head">{SIGNAL_LABEL[kind]} <b>{list.length}</b></div>
+      {list.slice(0, 8).map((s) => (
+        <div key={s.id} className="rsig">
+          <div className="rsig-name">
+            {s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.subject}</a> : s.subject}
+          </div>
+          <div className="rsig-why">
+            {s.evidence}
+            {s.observedDays > 1 && <span className="tiny muted"> · {s.observedDays}일 관찰</span>}
+          </div>
+        </div>
+      ))}
+      {list.length > 8 && <div className="tiny muted">외 {list.length - 8}개</div>}
     </div>
   );
 }

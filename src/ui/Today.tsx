@@ -11,6 +11,8 @@ import type { Product } from "../domain/types";
 import { isStale } from "../domain/freshness";
 import { computeOptionProfits } from "../domain/profitEngine";
 import { currentGrade } from "../domain/status";
+import { priceOpportunities } from "../domain/trend";
+import { formatKrw } from "../domain/money";
 import { WatchPanel } from "./WatchPanel";
 
 export interface TodoBuckets {
@@ -153,9 +155,40 @@ export function Today({ onOpen, onImport }: { onOpen: (k: TodoKey) => void; onIm
       {/* 사전 방어선 — 주문이 들어오기 전에 공급가·재고 변동을 잡는다 */}
       <WatchPanel />
 
+      {/* 공급가가 내려간 것 — 새 상품 찾기가 아니라 이미 파는 상품에서 돈이 생긴 것 */}
+      <PriceOpportunities />
+
       <div className="today-actions">
         <button className="btn primary lg" onClick={onImport}>📥 주문 가져오기</button>
       </div>
+    </div>
+  );
+}
+
+function PriceOpportunities() {
+  const now = Date.now();
+  const list = priceOpportunities(getProducts(), now).slice(0, 5);
+  if (!list.length) return null;
+
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        💰 공급가가 내려갔습니다 <span className="tiny muted">이미 파는 상품</span>
+      </div>
+      <p className="hint" style={{ marginTop: 0 }}>
+        마진이 늘었습니다. 그대로 둬도 되고, 가격을 낮춰 더 팔아볼 수도 있습니다.
+      </p>
+      {list.map((s) => (
+        <div key={s.id} className="opp-row">
+          <div className="opp-name">{s.subject}</div>
+          <div className="opp-num">
+            <span className="muted">{formatKrw(s.previousValue ?? 0)}</span>
+            {" → "}
+            <b>{formatKrw(s.value ?? 0)}</b>
+          </div>
+          <div className="opp-why">{s.evidence}</div>
+        </div>
+      ))}
     </div>
   );
 }

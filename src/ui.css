@@ -372,3 +372,36 @@ a.btn { display:inline-block; text-align:center; text-decoration:none; }
   margin-right:7px; padding:0 5px; border-radius:6px; background:var(--block-bg); color:var(--muted);
   font-size:11.5px; font-weight:800; vertical-align:1px; }
 .src-card.good .src-no { background:var(--safe-bg); color:var(--safe); }
+
+/* ============ 소싱 레이더 ============ */
+.radar-scores { display:grid; gap:8px; margin-top:8px; }
+.rscore { border:1px solid var(--border); border-left-width:4px; border-radius:10px; padding:10px 12px; }
+.rscore.good { border-left-color:var(--safe); background:var(--safe-bg); }
+.rscore.chk  { border-left-color:var(--warn); background:var(--warn-bg); }
+.rscore.skp  { border-left-color:var(--block); background:var(--block-bg); }
+.rs-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; }
+.rs-note { font-size:13px; color:var(--muted); margin-top:3px; line-height:1.55; }
+
+.kw-row { display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
+.kw-chip { display:inline-flex; align-items:center; gap:3px; padding:6px 12px; border-radius:999px;
+  border:1px solid var(--border); background:var(--card); color:var(--text);
+  font-size:13px; font-weight:600; text-decoration:none; }
+.kw-chip:hover { border-color:var(--accent); color:var(--accent); }
+
+.radar-groups { display:grid; gap:14px; margin-top:12px; }
+.rgroup { border-top:1px solid var(--border); padding-top:10px; }
+.rg-head { font-size:13px; font-weight:700; color:var(--muted); margin-bottom:7px; }
+.rg-head b { color:var(--text); margin-left:4px; }
+.rsig { padding:6px 0; border-bottom:1px dashed var(--border); }
+.rsig:last-child { border-bottom:none; }
+.rsig-name { font-size:13.5px; font-weight:600; }
+.rsig-name a { color:var(--text); text-decoration:none; }
+.rsig-name a:hover { color:var(--accent); text-decoration:underline; }
+.rsig-why { font-size:12.5px; color:var(--muted); margin-top:2px; }
+
+.opp-row { display:grid; grid-template-columns:1fr auto; gap:2px 12px; padding:9px 0; border-bottom:1px solid var(--border); }
+.opp-row:last-child { border-bottom:none; }
+.opp-name { font-size:14px; font-weight:600; }
+.opp-num { font-size:14px; text-align:right; white-space:nowrap; }
+.opp-num b { color:var(--safe); }
+.opp-why { grid-column:1 / -1; font-size:12.5px; color:var(--muted); }
