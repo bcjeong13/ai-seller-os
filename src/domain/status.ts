@@ -147,8 +147,13 @@ export function healthOf(
     : checks.some((c) => c.level === "ATTENTION") ? "ATTENTION"
     : "STABLE";
 
+  // 초안이 어디까지 왔는지에 따라 다음 할 일이 다르다
+  const detailCollected = product.options.length > 0 || product.specs.length > 0;
   const summary =
-    !priceSet ? "소싱센터에서 담은 초안입니다 — 확장으로 상세를 수집하고 판매가를 정하세요"
+    !priceSet && !detailCollected
+      ? "소싱센터에서 담은 초안입니다 — 확장으로 상세를 수집하세요"
+    : !priceSet
+      ? "상세는 가져왔습니다 — 판매가만 정하면 됩니다"
     : level === "RISK" ? "지금 손볼 곳이 있습니다"
     : level === "ATTENTION" ? "지켜볼 부분이 있습니다"
     : "정상입니다";

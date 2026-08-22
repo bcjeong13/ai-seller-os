@@ -20,6 +20,7 @@ const TITLES: Record<TodoKey, string> = {
   toSettle: "정산 입력",
   priceCheck: "공급가 확인",
   toList: "마켓에 등록",
+  drafts: "판매가 정하기",
 };
 
 const ORDER_KEYS: TodoKey[] = [
@@ -87,6 +88,10 @@ export function TaskList({
                       {p.supplierName || "도매처 미입력"} · 공급가 {formatKrw(p.cost.supplyPriceKrw)}
                       {which === "priceCheck" && <> · 확인 {agoText(p.lastCollectedAt, now)}</>}
                       {which === "losing" && opt.lossCount > 0 && <> · 역마진 옵션 {opt.lossCount}개</>}
+                      {which === "drafts" && (
+                        <> · 매입 {formatKrw(p.cost.supplyPriceKrw * Math.max(1, p.cost.minOrderQty ?? 1) + p.cost.shippingKrw)}
+                          {p.options.length === 0 && p.specs.length === 0 && " · 상세 미수집"}</>
+                      )}
                     </div>
                   </div>
                   <div className="row-right">
@@ -97,7 +102,7 @@ export function TaskList({
                       </a>
                     )}
                     <button className="btn xs primary" onClick={() => onOpenProduct(p)}>
-                      {which === "toList" ? "등록하기" : "자세히"}
+                      {which === "toList" ? "등록하기" : which === "drafts" ? "이어서 하기" : "자세히"}
                     </button>
                   </div>
                 </div>

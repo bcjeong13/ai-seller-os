@@ -36,7 +36,9 @@ export function WatchPanel() {
   const [msg, setMsg] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const products = getProducts().filter((p) => p.sourceUrl);
+  // ★ 판매가를 아직 안 정한 초안은 감시하지 않는다.
+  //   한계선이 0원으로 계산돼 무조건 🔴로 뜬다 — 진짜 위험한 상품이 묻힌다.
+  const products = getProducts().filter((p) => p.sourceUrl && p.price.buyerPaidKrw > 0);
   const due = products.filter((p) => needsCheck(p, contextOf(p.id, now), now, feeProfileOf(p.marketplace)));
 
   // 지금 저장된 값 기준 위험도 — 확인하지 않아도 이미 아는 것들

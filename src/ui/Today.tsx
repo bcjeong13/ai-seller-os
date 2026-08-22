@@ -24,6 +24,7 @@ export interface TodoBuckets {
   priceCheck: Product[];    // 공급가 확인 필요
   toList: Product[];        // 마켓에 등록 필요
   losing: Product[];        // 지금 팔면 손해
+  drafts: Product[];        // 소싱센터에서 담아만 둔 것 — 아직 판매가가 없다
   normalCount: number;
 }
 
@@ -56,9 +57,14 @@ export function buildTodos(now: number): TodoBuckets {
   const priceCheck: Product[] = [];
   const toList: Product[] = [];
   const losing: Product[] = [];
+  const drafts: Product[] = [];
   let normalCount = 0;
 
   for (const p of products) {
+    // ★ 판매가를 아직 안 정한 초안은 손익을 판정하지 않는다.
+    //   0원으로 계산하면 무엇이든 손해로 나와서, 진짜 손해 상품이 묻힌다.
+    if (p.price.buyerPaidKrw <= 0) { drafts.push(p); continue; }
+
     const fee = feeProfileOf(p.marketplace);
     const grade = currentGrade(p, fee);
     const opts = computeOptionProfits(p, fee);
@@ -74,12 +80,12 @@ export function buildTodos(now: number): TodoBuckets {
     if (!flagged) normalCount++;
   }
 
-  return { newOrders, toOrder, toTrack, toShip, toConfirm, toSettle, problems, priceCheck, toList, losing, normalCount };
+  return { newOrders, toOrder, toTrack, toShip, toConfirm, toSettle, problems, priceCheck, toList, losing, drafts, normalCount };
 }
 
 export type TodoKey =
   | "problems" | "newOrders" | "toOrder" | "toTrack" | "toShip"
-  | "toConfirm" | "toSettle" | "losing" | "priceCheck" | "toList";
+  | "toConfirm" | "toSettle" | "losing" | "priceCheck" | "toList" | "drafts";
 
 interface Row {
   key: TodoKey;
@@ -102,6 +108,7 @@ export function Today({ onOpen, onImport }: { onOpen: (k: TodoKey) => void; onIm
     { key: "toTrack",    icon: "🟠", label: "송장번호 입력",     count: t.toTrack.length,    tone: "orange" },
     { key: "toShip",     icon: "🟡", label: "마켓에 발송처리",   count: t.toShip.length,     tone: "yellow" },
     { key: "priceCheck", icon: "🟡", label: "공급가 확인",       count: t.priceCheck.length, tone: "yellow" },
+    { key: "drafts",     icon: "🔵", label: "판매가 정하기",     count: t.drafts.length,     tone: "blue" },
     { key: "toList",     icon: "🔵", label: "마켓에 등록",       count: t.toList.length,     tone: "blue" },
     { key: "toConfirm",  icon: "🔵", label: "배송 완료 확인",     count: t.toConfirm.length,  tone: "blue" },
     { key: "toSettle",   icon: "🔵", label: "정산 입력",         count: t.toSettle.length,   tone: "blue" },

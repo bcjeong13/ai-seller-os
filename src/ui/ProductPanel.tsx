@@ -11,6 +11,8 @@ import { computeOptionProfits, computeScenarios, summarizeOptions } from "../dom
 import { healthOf } from "../domain/status";
 import { formatKrw, formatPct } from "../domain/money";
 import { agoText } from "../domain/freshness";
+import { parseProductBlock } from "../domain/productImport";
+import { planMerge, type MergePlan } from "../domain/collectMerge";
 import { STATUS_META, HEALTH_META, GRADE_META, CHANNEL_META, STOCK_LABEL, Badge } from "./meta";
 
 export function ProductPanel({ openId, onBack, onListing }:
@@ -109,20 +111,16 @@ function ProductDetail({ product, onBack, onListing }:
         )}
       </div>
 
+      <CollectCard product={product} />
+
       {/* 판매가가 없으면 손익을 보여주지 않는다 — 0원으로 계산하면 무엇이든 손해로 나온다 */}
       {product.price.buyerPaidKrw <= 0 ? (
-        <div className="card pad" style={{ borderColor: "var(--accent)" }}>
-          <div className="section-label">📌 다음에 할 일</div>
-          <ol className="howto">
-            <li>
-              <a href={product.sourceUrl} target="_blank" rel="noreferrer">도매처 상품페이지</a>를 엽니다
-              {" "}— 지금은 목록에서 읽은 이름·공급가·배송비만 들어와 있습니다
-            </li>
-            <li>확장 → <b>📋 복사</b> → 옵션·스펙·반품정책까지 가져옵니다</li>
-            <li>소싱센터에서 본 시세를 보고 <b>판매가</b>를 정합니다</li>
-            <li>정해지면 손익과 등록 검토가 여기에 나타납니다</li>
-          </ol>
+        <div className="card pad">
+          <div className="section-label">📌 남은 것</div>
           <div className="hint">
+            소싱센터에서 본 시세를 보고 <b>판매가</b>를 정하면 손익과 등록 검토가 여기에 나타납니다.
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>
             매입원가 {formatKrw(product.cost.supplyPriceKrw * Math.max(1, product.cost.minOrderQty ?? 1) + product.cost.shippingKrw)}
             {" "}— 공급가 {formatKrw(product.cost.supplyPriceKrw)}
             {(product.cost.minOrderQty ?? 1) > 1 && ` × ${product.cost.minOrderQty}개`}
@@ -249,6 +247,112 @@ function ProductDetail({ product, onBack, onListing }:
           if (confirm("이 상품을 삭제할까요?")) { deleteProduct(product.id); onBack(); }
         }}>상품 삭제</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 확장으로 수집한 내용을 이 상품에 채워 넣는다.
+ * 새 상품을 만들지 않는다 — 같은 상품이 두 개가 되면 어느 쪽이 진짜인지 알 수 없다.
+ */
+function CollectCard({ product }: { product: Product }) {
+  // 상세를 아직 안 가져온 상품만 열어둔다. 판매가만 남은 것은 접어둔다.
+  const needsCollect = product.options.length === 0 && product.specs.length === 0;
+  const [open, setOpen] = useState(needsCollect);
+  const [text, setText] = useState("");
+  const [plan, setPlan] = useState<MergePlan | null>(null);
+
+  const check = () => setPlan(planMerge(product, parseProductBlock(text)));
+
+  const apply = () => {
+    if (!plan?.ok || !plan.product || !plan.cost) return;
+    const { id, ...rest } = plan.product;
+    updateProduct(id, rest);
+    const changed =
+      plan.cost.supplyPriceKrw !== product.cost.supplyPriceKrw ||
+      plan.cost.shippingKrw !== product.cost.shippingKrw ||
+      (plan.cost.minOrderQty ?? 1) !== (product.cost.minOrderQty ?? 1);
+    // 원가는 이력이 남는 경로로 따로 저장한다
+    if (changed) updateCost(id, plan.cost, "확장 수집");
+    refreshCollectedAt(id);
+    setPlan(null);
+    setText("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="card pad" style={needsCollect ? { borderColor: "var(--accent)" } : undefined}>
+      <div className="section-label">
+        📋 확장에서 수집한 내용 붙여넣기
+        {needsCollect && <span className="tiny muted"> 아직 상세를 안 가져왔습니다</span>}
+      </div>
+
+      {!open ? (
+        <button className="btn sm" onClick={() => setOpen(true)}>다시 수집해서 갱신하기</button>
+      ) : (
+        <>
+          <ol className="howto">
+            <li>
+              {product.sourceUrl
+                ? <a href={product.sourceUrl} target="_blank" rel="noreferrer">도매처 상품페이지</a>
+                : "도매처 상품페이지"}를 엽니다
+            </li>
+            <li>확장 → <b>📋 복사 (앱에 붙여넣기)</b></li>
+            <li>아래에 붙여넣고 <b>내용 확인</b>을 누릅니다</li>
+          </ol>
+          <textarea className="paste" rows={3} value={text}
+                    onChange={(e) => { setText(e.target.value); setPlan(null); }}
+                    placeholder="##AISOS## 로 시작하는 수집 내용을 붙여넣기" />
+          <div className="btn-row">
+            <button className="btn primary" disabled={!text.trim()} onClick={check}>내용 확인</button>
+            {plan && <button className="btn sm" onClick={() => { setText(""); setPlan(null); }}>지우기</button>}
+          </div>
+        </>
+      )}
+
+      {plan && (
+        <div style={{ marginTop: 12 }}>
+          {plan.urlMismatch && (
+            <div className="warn-note" style={{ marginBottom: 10 }}>
+              ⚠️ <b>다른 상품일 수 있습니다</b> — {plan.urlMismatch}. 그대로 반영하면 이 상품의
+              내용이 통째로 바뀝니다.
+            </div>
+          )}
+
+          {plan.changes.length === 0 ? (
+            <div className="hint">{plan.message}</div>
+          ) : (
+            <>
+              <div className="tiny muted" style={{ marginBottom: 6 }}>{plan.message} 반영 전에 확인하세요.</div>
+              <table className="mk-table">
+                <tbody>
+                  {plan.changes.map((c, i) => (
+                    <tr key={i}>
+                      <th>{c.label}</th>
+                      <td>
+                        <span className="muted">{c.before}</span> → <b>{c.after}</b>
+                        {c.affectsProfit && <span className="tiny warn-txt"> 손익에 영향</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {plan.missing.length > 0 && (
+            <div className="hint" style={{ marginTop: 8 }}>
+              아직 비어 있는 것: <b>{plan.missing.join(", ")}</b>
+            </div>
+          )}
+
+          {plan.ok && plan.changes.length > 0 && (
+            <button className="btn primary lg" style={{ marginTop: 10 }} onClick={apply}>
+              이 내용으로 채우기
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
