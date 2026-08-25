@@ -18,7 +18,7 @@
 import type { Marketplace, MarketFeeProfile, Product } from "./types";
 import { ALL_CHANNELS } from "./types";
 import { buildListingHtml } from "./listingHtml";
-import { judgeProductNotice, noticeRows } from "./notice";
+import { judgeProductNotice, noticeRows, type NoticeDefaults } from "./notice";
 import { defaultSellerPolicy, returnNoticeLines, comparePolicies, worstGap } from "./sellerPolicy";
 import { computeOptionProfits } from "./profitEngine";
 import { isJunkOptionName } from "./productImport";
@@ -167,10 +167,10 @@ export interface MarketplaceProduct {
   issues: MarketIssue[];
 }
 
-export function toMarketplaceProduct(p: Product, m: Marketplace): MarketplaceProduct {
+export function toMarketplaceProduct(p: Product, m: Marketplace, nd: NoticeDefaults = {}): MarketplaceProduct {
   const rule = marketRule(m);
   const name = cleanProductName(p.name, rule.nameMaxLen);
-  const notice = judgeProductNotice(p);
+  const notice = judgeProductNotice(p, nd);
   const policy = p.sellerReturnPolicy ?? defaultSellerPolicy(p.supplierReturnPolicy);
   const options = (p.options ?? []).filter((o) => o.enabled);
   const issues: MarketIssue[] = [];
@@ -237,7 +237,7 @@ export function toMarketplaceProduct(p: Product, m: Marketplace): MarketplacePro
     options: options.map((o) => ({ name: o.name, addPriceKrw: o.addPriceKrw })),
     notice: noticeRows(notice),
     returnLines: returnNoticeLines(policy),
-    detailHtml: buildListingHtml(p).html,
+    detailHtml: buildListingHtml(p, nd).html,
     issues,
   };
 }
@@ -266,8 +266,8 @@ export function marketCopyText(mp: MarketplaceProduct): string {
   return L.join("\n");
 }
 
-export function toAllMarketplaces(p: Product, only?: Marketplace[]): MarketplaceProduct[] {
-  return (only ?? ALL_CHANNELS).map((m) => toMarketplaceProduct(p, m));
+export function toAllMarketplaces(p: Product, only?: Marketplace[], nd: NoticeDefaults = {}): MarketplaceProduct[] {
+  return (only ?? ALL_CHANNELS).map((m) => toMarketplaceProduct(p, m, nd));
 }
 
 // ------------------------------------------------------------
@@ -294,9 +294,9 @@ export interface ListingReview {
   blockers: string[];
 }
 
-export function reviewForListing(p: Product, fee?: MarketFeeProfile): ListingReview {
+export function reviewForListing(p: Product, fee?: MarketFeeProfile, nd: NoticeDefaults = {}): ListingReview {
   const opt = computeOptionProfits(p, fee);
-  const notice = judgeProductNotice(p);
+  const notice = judgeProductNotice(p, nd);
   const policy = p.sellerReturnPolicy ?? defaultSellerPolicy(p.supplierReturnPolicy);
   const gaps = comparePolicies(policy, p.supplierReturnPolicy);
 
@@ -353,7 +353,7 @@ export function reviewForListing(p: Product, fee?: MarketFeeProfile): ListingRev
   });
 
   // 상세설명
-  const html = buildListingHtml(p);
+  const html = buildListingHtml(p, nd);
   auto.push({
     ok: html.todos.length === 0,
     label: "상세페이지",

@@ -16,7 +16,7 @@
 // ============================================================
 
 import type { Product } from "./types";
-import { judgeProductNotice, noticeRows } from "./notice";
+import { judgeProductNotice, noticeRows, type NoticeDefaults } from "./notice";
 import { isSellerOnlySpec } from "./listingContent";
 import { defaultSellerPolicy, returnNoticeLines } from "./sellerPolicy";
 import { formatKrw } from "./money";
@@ -127,7 +127,7 @@ export interface ListingHtml {
   imageSlots: number;
 }
 
-export function buildListingHtml(p: Product): ListingHtml {
+export function buildListingHtml(p: Product, noticeDefaults: NoticeDefaults = {}): ListingHtml {
   const seed = seedOf(p.name || "");
   const todos: string[] = [];
 
@@ -136,7 +136,7 @@ export function buildListingHtml(p: Product): ListingHtml {
     .filter((s) => s.key && s.value && !isSellerOnlySpec(s.key))
     .map((s) => ({ label: s.key.trim(), value: s.value.trim() }));
 
-  const notice = judgeProductNotice(p);
+  const notice = judgeProductNotice(p, noticeDefaults);
   const policy = p.sellerReturnPolicy ?? defaultSellerPolicy(p.supplierReturnPolicy);
   const options = (p.options ?? []).filter((o) => o.enabled);
 

@@ -86,3 +86,32 @@ describe("도매처 스펙으로 채우기", () => {
     expect(st).not.toHaveProperty("score");
   });
 });
+
+describe("설정에 적어둔 공통값 — 상품마다 다시 치지 않는다", () => {
+  const defaults = { asPhone: "홍길동 010-1111-2222", warranty: "소비자분쟁해결기준에 따름" };
+
+  it("A/S 연락처와 품질보증기준이 설정에서 채워진다", () => {
+    const st = judgeNotice("수납함", [], {}, defaults);
+    const as = st.slots.find((s) => s.field.key === "asPhone");
+    expect(as?.value).toBe(defaults.asPhone);
+    expect(as?.source).toBe("settings");
+  });
+
+  it("★ 설정값 덕분에 비어 있는 칸이 줄어든다", () => {
+    const withOut = judgeNotice("수납함", []);
+    const withIn = judgeNotice("수납함", [], {}, defaults);
+    expect(withIn.missing.length).toBe(withOut.missing.length - 2);
+  });
+
+  it("상품별로 직접 입력한 값이 설정값을 이긴다", () => {
+    const st = judgeNotice("수납함", [], { asPhone: "다른번호" }, defaults);
+    const as = st.slots.find((s) => s.field.key === "asPhone");
+    expect(as?.value).toBe("다른번호");
+    expect(as?.source).toBe("manual");
+  });
+
+  it("설정이 비어 있으면 여전히 물어본다", () => {
+    const st = judgeNotice("수납함", [], {}, { asPhone: "  " });
+    expect(st.missing).toContain("A/S 책임자·연락처");
+  });
+});

@@ -24,11 +24,22 @@ export interface Settings {
   /** 배송정보 보존기간(일) — 하드코딩 금지, 사용자가 변경 가능 */
   retentionDays: number;
   targetMarginPct: number;
+
+  /**
+   * 상품정보제공고시 중 상품이 달라도 늘 같은 값 — 한 번만 적으면 모든 상품에 채워진다.
+   * ★ 도매처에서 자동으로 읽어오지 않는다. 고객 클레임이 도매처로 가면 안 된다.
+   */
+  asPhone?: string;
+  warranty?: string;
 }
+
+/** 대부분의 상품이 이 문구를 쓴다 */
+export const DEFAULT_WARRANTY = "관련 법 및 소비자분쟁해결기준에 따름";
 
 export const DEFAULT_SETTINGS: Settings = {
   retentionDays: DEFAULT_RETENTION_DAYS,
   targetMarginPct: 30,
+  warranty: DEFAULT_WARRANTY,
 };
 
 interface AppState {

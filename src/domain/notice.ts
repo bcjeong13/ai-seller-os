@@ -202,25 +202,43 @@ export interface NoticeSlot {
   field: NoticeField;
   value?: string;
   /** 어디서 왔는가 */
-  source: "spec" | "manual" | "empty";
+  source: "spec" | "manual" | "settings" | "empty";
+}
+
+/**
+ * 상품이 달라도 늘 같은 값 — 설정에 한 번 적어두면 모든 상품에 채워진다.
+ * 상품마다 A/S 번호를 다시 치게 하지 않는다.
+ */
+export interface NoticeDefaults {
+  asPhone?: string;
+  warranty?: string;
 }
 
 /**
  * 도매처 스펙으로 채울 수 있는 만큼 채우고, 나머지는 비워 둔다.
- * @param saved 사용자가 직접 입력해 둔 값 (스펙보다 우선한다)
+ * @param saved 사용자가 이 상품에만 직접 입력해 둔 값 (가장 우선한다)
+ * @param defaults 설정에 적어둔 공통값
  */
 export function fillNotice(
   kind: NoticeKind,
   specs: ProductSpec[],
-  saved: Record<string, string> = {}
+  saved: Record<string, string> = {},
+  defaults: NoticeDefaults = {}
 ): NoticeSlot[] {
   return noticeFields(kind).map((field) => {
     const own = (saved[field.key] || "").trim();
     if (own) return { field, value: own, source: "manual" as const };
+
     if (!field.manual && field.from) {
       const v = findSpec(specs, field.from);
       if (v) return { field, value: v, source: "spec" as const };
     }
+
+    const fromSettings = (defaults as Record<string, string | undefined>)[field.key];
+    if (fromSettings?.trim()) {
+      return { field, value: fromSettings.trim(), source: "settings" as const };
+    }
+
     return { field, source: "empty" as const };
   });
 }
@@ -252,10 +270,11 @@ const BLOCK_AT = 3;
 export function judgeNotice(
   name: string,
   specs: ProductSpec[],
-  saved: Record<string, string> = {}
+  saved: Record<string, string> = {},
+  defaults: NoticeDefaults = {}
 ): NoticeStatus {
   const kind = noticeKindOf(name);
-  const slots = fillNotice(kind, specs, saved);
+  const slots = fillNotice(kind, specs, saved, defaults);
   const missing = slots.filter((s) => s.source === "empty").map((s) => s.field.label);
   const filled = slots.length - missing.length;
 
@@ -282,8 +301,8 @@ export const NOTICE_LABEL: Record<NoticeLevel, string> = {
 };
 
 /** 상품 하나를 그대로 판정 */
-export function judgeProductNotice(p: Product): NoticeStatus {
-  return judgeNotice(p.name, p.specs ?? [], p.noticeInfo ?? {});
+export function judgeProductNotice(p: Product, defaults: NoticeDefaults = {}): NoticeStatus {
+  return judgeNotice(p.name, p.specs ?? [], p.noticeInfo ?? {}, defaults);
 }
 
 /** 상세페이지 하단에 넣을 고시 표 (채워진 것만) */

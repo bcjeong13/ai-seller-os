@@ -11,7 +11,7 @@
 import { useState } from "react";
 import type { Product, Marketplace, SellerReturnPolicy } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
-import { getProduct, feeProfileOf, setListing, useStore, updateProduct } from "../store/db";
+import { getProduct, feeProfileOf, setListing, useStore, updateProduct, getSettings } from "../store/db";
 import { buildListingHtml } from "../domain/listingHtml";
 import { judgeProductNotice, NOTICE_LABEL } from "../domain/notice";
 import {
@@ -21,6 +21,12 @@ import {
 import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
 import { formatKrw } from "../domain/money";
 import { CHANNEL_META } from "./meta";
+
+/** 설정에 적어둔 공통 고시정보 — 상품마다 다시 치지 않게 한다 */
+function noticeDefaults() {
+  const s = getSettings();
+  return { asPhone: s.asPhone, warranty: s.warranty };
+}
 
 export function ListingTask({ productId, onBack }: { productId: string; onBack: () => void }) {
   useStore();
@@ -84,7 +90,7 @@ function Steps({ approved }: { approved: boolean }) {
 
 function ReviewCard({ product }: { product: Product }) {
   const fee = feeProfileOf(product.marketplace);
-  const r = reviewForListing(product, fee);
+  const r = reviewForListing(product, fee, noticeDefaults());
 
   return (
     <div className="card pad">
@@ -114,7 +120,7 @@ function ReviewCard({ product }: { product: Product }) {
 // ------------------------------------------------------------
 
 function NoticeCard({ product }: { product: Product }) {
-  const st = judgeProductNotice(product);
+  const st = judgeProductNotice(product, noticeDefaults());
   const [open, setOpen] = useState(st.level !== "READY");
 
   const set = (key: string, value: string) => {
@@ -151,12 +157,13 @@ function NoticeCard({ product }: { product: Product }) {
               <div className="nlab">
                 {s.field.label}
                 {s.source === "spec" && <span className="tiny muted"> 도매처에서 읽음</span>}
+                {s.source === "settings" && <span className="tiny muted"> 내 설정에서</span>}
                 {s.source === "empty" && <span className="tiny warn-txt"> 비어 있음</span>}
               </div>
               <input
                 type="text"
                 defaultValue={s.source === "manual" ? s.value : ""}
-                placeholder={s.source === "spec" ? s.value : "직접 입력"}
+                placeholder={s.source === "spec" || s.source === "settings" ? s.value : "직접 입력"}
                 onBlur={(e) => set(s.field.key, e.target.value)}
               />
               {s.field.hint && <div className="tiny muted nhint">{s.field.hint}</div>}
@@ -255,7 +262,7 @@ function ReturnPolicyCard({ product }: { product: Product }) {
 // ------------------------------------------------------------
 
 function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string, l: string) => void }) {
-  const r = buildListingHtml(product);
+  const r = buildListingHtml(product, noticeDefaults());
   const [tab, setTab] = useState<"mobile" | "pc" | "code">("mobile");
 
   return (
@@ -310,7 +317,7 @@ function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string,
 
 function ApproveCard({ product, approved }: { product: Product; approved: boolean }) {
   const fee = feeProfileOf(product.marketplace);
-  const r = reviewForListing(product, fee);
+  const r = reviewForListing(product, fee, noticeDefaults());
   const a = product.listingApproval;
   const [img, setImg] = useState(a?.imageChecked ?? false);
   const [word, setWord] = useState(a?.wordingChecked ?? false);
@@ -419,7 +426,7 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
       {sel.map((m) => (
         <MarketCard
           key={m}
-          mp={toMarketplaceProduct(product, m)}
+          mp={toMarketplaceProduct(product, m, noticeDefaults())}
           listed={!!product.listings.find((x) => x.marketplace === m)?.listed}
           open={open === m}
           onToggle={() => setOpen((o) => (o === m ? null : m))}

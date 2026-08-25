@@ -1,6 +1,6 @@
 // 설정 — 수수료 / 개인정보 보존기간 / 백업·복원
 import { useState } from "react";
-import { useStore, getSettings, updateSettings, getFeeProfiles, updateFeeProfile, exportBackup, restoreBackup, purgeExpiredShipping } from "../store/db";
+import { useStore, getSettings, updateSettings, getFeeProfiles, updateFeeProfile, exportBackup, restoreBackup, purgeExpiredShipping, DEFAULT_WARRANTY } from "../store/db";
 import { backupFileName, parseBackup, PERSONAL_DATA_WARNING, type BackupKind } from "../domain/backup";
 import { CHANNEL_META } from "./meta";
 import type { MarketFeeProfile } from "../domain/types";
@@ -48,6 +48,35 @@ export function SettingsPanel({ onBack }: { onBack: () => void }) {
           <b>본인 판매자센터에서 실제 요율을 확인해 입력하세요.</b> 확인한 항목은 체크해 두면 경고가 사라집니다.
         </div>
         {profiles.map((p) => <FeeEditor key={p.marketplace} profile={p} />)}
+      </div>
+
+      {/* 상품이 달라도 늘 같은 값 — 한 번만 적으면 모든 상품에 채워진다 */}
+      <div className="card pad">
+        <div className="section-label">
+          내 판매자 정보 <span className="tiny muted">고시정보에 자동으로 채워집니다</span>
+        </div>
+        <p className="hint">
+          상품마다 다시 입력하지 않아도 됩니다. 상품별로 다르게 쓰고 싶으면
+          그 상품의 등록 화면에서 덮어쓰면 됩니다.
+        </p>
+        <div className="form-grid">
+          <div className="field">
+            <label>A/S 책임자 · 연락처</label>
+            <input type="text" defaultValue={s.asPhone ?? ""}
+                   placeholder="예: 홍길동 010-0000-0000"
+                   onBlur={(e) => updateSettings({ asPhone: e.target.value.trim() })} />
+            <div className="tiny muted" style={{ marginTop: 4 }}>
+              ⚠️ <b>도매처 번호를 쓰면 안 됩니다.</b> 고객 클레임이 도매처로 가면 응대가 되지 않고
+              그 사이 별점이 떨어집니다. 내가 받는 번호를 적으세요.
+            </div>
+          </div>
+          <div className="field">
+            <label>품질보증기준</label>
+            <input type="text" defaultValue={s.warranty ?? ""}
+                   placeholder={DEFAULT_WARRANTY}
+                   onBlur={(e) => updateSettings({ warranty: e.target.value.trim() })} />
+          </div>
+        </div>
       </div>
 
       {/* 개인정보 */}
