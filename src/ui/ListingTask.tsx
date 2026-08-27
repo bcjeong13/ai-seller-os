@@ -63,6 +63,7 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
       <NoticeCard product={product} />
       <ReturnPolicyCard product={product} />
       <DetailCard product={product} onCopy={copy} />
+      <ImageCard product={product} />
       <ApproveCard product={product} approved={approved} />
 
       {approved && <MarketSection product={product} onCopy={copy} />}
@@ -312,6 +313,50 @@ function DetailCard({ product, onCopy }: { product: Product; onCopy: (t: string,
 }
 
 // ------------------------------------------------------------
+// 이미지
+//
+// ★ 앱은 이미지를 보관하지 않는다. 확장이 도매처에서 내 컴퓨터로 받고,
+//   사람이 마켓 에디터에 직접 올린다. 마켓 서버에 올라가야 하기 때문이다.
+// ------------------------------------------------------------
+
+function ImageCard({ product }: { product: Product }) {
+  return (
+    <div className="card pad">
+      <div className="section-label">
+        이미지 <span className="tiny muted">앱이 보관하지 않습니다</span>
+      </div>
+      <p className="hint" style={{ marginTop: 0 }}>
+        이미지는 <b>마켓 서버에 올라가야</b> 고객에게 보입니다. 그래서 앱이 대신 넣을 수 없고,
+        마켓 에디터에서 직접 올리셔야 합니다.
+      </p>
+      <ol className="howto">
+        <li>
+          {product.sourceUrl
+            ? <a href={product.sourceUrl} target="_blank" rel="noreferrer">도매처 상품페이지</a>
+            : "도매처 상품페이지"}에서 확장 → <b>⬇️ 선택한 이미지 다운로드</b>
+          <div className="tiny muted">저장 위치: 다운로드 &gt; AISOS &gt; 상품명</div>
+        </li>
+        <li>
+          <b>공급사 로고·연락처가 박힌 이미지는 빼세요</b>
+          <div className="tiny muted">다른 판매자 연락처가 내 상세페이지에 노출됩니다</div>
+        </li>
+        <li>
+          마켓 에디터에서 회색 칸을 지우고 그 자리에 사진을 넣습니다
+          <div className="tiny muted">대표 1장 + 상세 3장 = 4곳</div>
+        </li>
+      </ol>
+      {product.imageRightsConfirmed ? (
+        <div className="hint">✅ 이미지 사용 허용을 확인한 상품입니다.</div>
+      ) : (
+        <div className="warn-note">
+          ⚠️ 아직 <b>이미지 사용 허용</b>을 확인하지 않았습니다. 아래 승인 단계에서 확인합니다.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
 // ② 승인 — 사람에게는 코드가 볼 수 없는 것만 묻는다
 // ------------------------------------------------------------
 
@@ -407,6 +452,10 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
         <p className="hint" style={{ marginTop: 0 }}>
           마켓마다 상품명 길이·필수 항목이 다릅니다. 고른 마켓에 맞춰 각각 변환해 드립니다.
         </p>
+        <div className="hint" style={{ marginTop: 6 }}>
+          <b>상세페이지 HTML은 5곳이 모두 같습니다</b> — 한 번 복사해두고 붙여넣기만 반복하면 됩니다.
+          다만 <b>이미지는 마켓마다 다시 올려야</b> 합니다. 각 마켓 서버에 올라가야 하기 때문입니다.
+        </div>
         <div className="listing-grid">
           {ALL_CHANNELS.map((m) => {
             const c = CHANNEL_META[m];
