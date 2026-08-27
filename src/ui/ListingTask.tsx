@@ -11,7 +11,7 @@
 import { useState } from "react";
 import type { Product, Marketplace, SellerReturnPolicy } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
-import { getProduct, feeProfileOf, setListing, useStore, updateProduct, getSettings } from "../store/db";
+import { getProduct, feeProfileOf, setListing, useStore, updateProduct, getSettings, updateSettings, DEFAULT_LISTING_STOCK } from "../store/db";
 import { buildListingHtml } from "../domain/listingHtml";
 import { judgeProductNotice, NOTICE_LABEL } from "../domain/notice";
 import {
@@ -20,6 +20,7 @@ import {
 } from "../domain/marketplaceProduct";
 import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
 import { formatKrw } from "../domain/money";
+import { buildFillBlock, NOT_FILLED } from "../domain/marketFill";
 import { CHANNEL_META } from "./meta";
 
 /** 설정에 적어둔 공통 고시정보 — 상품마다 다시 치지 않게 한다 */
@@ -537,6 +538,50 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
 }
 
 /**
+ * 네이버 자동 채우기.
+ * 실제 등록화면을 읽어 확인한 칸만 채운다. 저장은 하지 않는다.
+ */
+function NaverFill({ mp, onCopy }: { mp: MarketplaceProduct; onCopy: (t: string, l: string) => void }) {
+  const [stock, setStock] = useState(getSettings().listingStockQty ?? DEFAULT_LISTING_STOCK);
+  const hint = mp.name.split(" ").slice(-2).join(" ");
+
+  const copyFill = () => {
+    updateSettings({ listingStockQty: stock });
+    onCopy(buildFillBlock(mp, { marketplace: "NAVER", stockQty: stock, categoryHint: hint }), "자동 채우기 값");
+  };
+
+  return (
+    <div className="fill-box">
+      <div className="fill-head">
+        🪄 <b>자동 채우기</b>
+        <span className="tiny muted">상품명 · 판매가 · 재고수량 · 상세설명</span>
+      </div>
+      <ol className="howto" style={{ marginTop: 6 }}>
+        <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
+        <li>네이버 <b>상품등록</b> 화면에서 확장 → <b>🪄 등록화면 자동 채우기</b> → 붙여넣고 <b>[채우기]</b></li>
+        <li>나머지 칸을 직접 채우고 <b>네이버에서 저장</b> — 확장은 저장하지 않습니다</li>
+      </ol>
+      <div className="btn-row">
+        <label className="fill-stock">
+          재고수량
+          <input type="number" min={1} value={stock}
+                 onChange={(e) => setStock(Math.max(1, +e.target.value || 1))} />
+        </label>
+        <button className="btn sm primary" onClick={copyFill}>🪄 자동 채우기 값 복사</button>
+      </div>
+      <details className="fill-not">
+        <summary>자동으로 안 되는 칸 {NOT_FILLED.length}개</summary>
+        <ul className="ex-list" style={{ marginTop: 6 }}>
+          {NOT_FILLED.map((n) => (
+            <li key={n.label}><b>{n.label}</b> — {n.why}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+/**
  * 마켓 등록 화면에는 앱이 채워줄 수 없는 칸이 몇 개 있다.
  * 위탁판매에서 사고가 나는 곳은 대부분 여기다.
  */
@@ -678,6 +723,8 @@ function MarketCard({
           )}
         </tbody>
       </table>
+
+      {mp.marketplace === "NAVER" && <NaverFill mp={mp} onCopy={onCopy} />}
 
       <div className="btn-row">
         <button className="btn sm primary" onClick={() => onCopy(marketCopyText(mp), `${mp.label} 등록정보 전체`)}>

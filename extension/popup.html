@@ -53,6 +53,18 @@
     <button id="surveyCopy" class="wide" style="display:none">📋 결과 복사 (앱에 붙여넣기)</button>
   </details>
 
+  <details id="fillBox" class="watch">
+    <summary>🪄 등록화면 자동 채우기 (네이버)</summary>
+    <div class="muted tiny">
+      네이버 <b>상품등록 화면</b>을 열어둔 채로 하세요. 앱에서 복사한 값을 넣고 [채우기]를 누르면
+      상품명·판매가·재고수량·상세설명이 채워집니다.
+      <b>저장은 하지 않습니다</b> — 확인하고 직접 저장하세요.
+    </div>
+    <textarea id="fillIn" rows="3" placeholder="##AISOS-FILL## 로 시작하는 값을 붙여넣기"></textarea>
+    <button id="fillRun" class="primary wide">채우기</button>
+    <div class="muted tiny" id="fillStatus"></div>
+  </details>
+
   <details id="formBox" class="watch">
     <summary>🧭 판매자센터 등록화면 살펴보기</summary>
     <div class="muted tiny">

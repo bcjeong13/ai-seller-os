@@ -784,6 +784,131 @@ $("surveyCopy").addEventListener("click", async () => {
 });
 
 // ------------------------------------------------------------
+// 등록화면 자동 채우기
+//
+// ★ 저장하지 않는다. 값만 넣고, 확인과 저장은 사람이 한다.
+// ★ 아래 선택자는 실제 화면을 읽어 확인한 것만 쓴다.
+//   짐작으로 넣으면 엉뚱한 칸에 값이 들어가고 조용히 틀린다.
+// ★ 화면이 바뀌면 이 표만 고치면 된다.
+// ------------------------------------------------------------
+
+function fillProbe(payload) {
+  // 마켓별 칸 — 2026-08 네이버 스마트스토어 상품등록에서 확인
+  var MAP = {
+    NAVER: {
+      name:     ['[name="product.name"]'],
+      price:    ['#prd_price2', '[name="product.salePrice"]'],
+      stock:    ['#stock', '[name="product.stockQuantity"]'],
+      category: ['[name="category"]'],
+      detail:   ['textarea[name="editorContent"]'],
+    },
+  };
+
+  var map = MAP[payload.site];
+  if (!map) return { ok: false, reason: "이 마켓은 아직 지원하지 않습니다" };
+
+  function visible(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  // React·Vue는 값을 직접 넣으면 알아채지 못한다. 네이티브 setter로 넣고 이벤트를 알린다.
+  function setValue(el, value) {
+    var proto = el.tagName === "TEXTAREA"
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+    var setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  var filled = [];
+  var missed = [];
+
+  Object.keys(map).forEach(function (field) {
+    var value = payload.fields[field];
+    if (value === undefined || value === "") return;
+
+    var el = null;
+    for (var i = 0; i < map[field].length && !el; i++) {
+      var found = document.querySelectorAll(map[field][i]);
+      for (var j = 0; j < found.length; j++) {
+        // 상세설명 textarea는 숨어 있을 수 있다 — 그건 예외로 둔다
+        if (field === "detail" || visible(found[j])) { el = found[j]; break; }
+      }
+    }
+
+    if (!el) { missed.push(field); return; }
+    try { setValue(el, value); filled.push(field); }
+    catch (e) { missed.push(field); }
+  });
+
+  return { ok: true, filled: filled, missed: missed };
+}
+
+function parseFill(text) {
+  var out = { site: "", fields: {} };
+  var H = "##AISOS-FILL##";
+  if (!text || text.indexOf(H) < 0) return out;
+  var body = text.slice(text.indexOf(H) + H.length);
+  var lines = body.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var k = line.indexOf("|");
+    if (k < 0) continue;
+    var key = line.slice(0, k).trim();
+    var val = line.slice(k + 1).split("\\n").join("\n");
+    if (key === "site") out.site = val;
+    else out.fields[key] = val;
+  }
+  return out;
+}
+
+var FILL_LABEL = {
+  name: "상품명", price: "판매가", stock: "재고수량",
+  category: "카테고리 검색어", detail: "상세설명",
+};
+
+function labelList(keys) {
+  return keys.map(function (k) { return FILL_LABEL[k] || k; }).join(", ");
+}
+
+$("fillRun").addEventListener("click", async () => {
+  const payload = parseFill($("fillIn").value);
+  if (!payload.site) {
+    $("fillStatus").textContent = "값이 아닙니다. 앱 등록센터의 [🪄 자동 채우기 값 복사]로 받은 것을 넣어주세요.";
+    return;
+  }
+
+  $("fillStatus").textContent = "채우는 중…";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const res = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, func: fillProbe, args: [payload],
+    });
+    const r = res && res[0] && res[0].result;
+
+    if (!r || !r.ok) {
+      $("fillStatus").textContent = (r && r.reason) || "채우지 못했습니다.";
+      return;
+    }
+    if (!r.filled.length) {
+      $("fillStatus").textContent =
+        "채운 칸이 없습니다. 상품등록 화면이 맞는지 확인해 주세요.";
+      return;
+    }
+    $("fillStatus").textContent =
+      "✅ " + labelList(r.filled) + " 채웠습니다." +
+      (r.missed.length ? " 못 찾은 칸: " + labelList(r.missed) + "." : "") +
+      " 확인하고 직접 저장하세요 — 저장은 하지 않았습니다.";
+  } catch (e) {
+    $("fillStatus").textContent = "이 페이지에서는 동작하지 않습니다.";
+  }
+});
+
+// ------------------------------------------------------------
 // 판매자센터 등록화면 조사
 //
 // ★ 읽기만 한다. 입력도 저장도 하지 않는다.

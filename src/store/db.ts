@@ -31,7 +31,16 @@ export interface Settings {
    */
   asPhone?: string;
   warranty?: string;
+
+  /**
+   * 마켓에 넣을 재고수량. 위탁이라 실재고가 없다.
+   * 도매처 재고를 그대로 쓰면 품절돼도 내 마켓은 판매중으로 남는다.
+   */
+  listingStockQty?: number;
 }
+
+/** 처음에는 작게 잡고 감시로 확인하는 편이 안전하다 */
+export const DEFAULT_LISTING_STOCK = 20;
 
 /** 대부분의 상품이 이 문구를 쓴다 */
 export const DEFAULT_WARRANTY = "관련 법 및 소비자분쟁해결기준에 따름";
