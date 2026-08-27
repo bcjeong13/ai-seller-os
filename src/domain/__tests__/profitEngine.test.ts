@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { CostInputs, PriceBreakdown, MarketFeeProfile } from "../types";
 import {
   computeProfit, recommendSellingPrice, returnReserve,
-  computeScenarios, computeOptionProfits, supplyHeadroom,
+  computeScenarios, computeOptionProfits, supplyHeadroom, summarizeOptions,
 } from "../profitEngine";
 import { detectAnomaly } from "../anomaly";
 import { makeProduct, makeOption, makePrice } from "../factory";
@@ -262,5 +262,47 @@ describe("이상 가격 감지", () => {
   });
   it("5,000 → 5,100 (+2%) → 정상", () => {
     expect(detectAnomaly(5000, 5100).isAnomaly).toBe(false);
+  });
+});
+
+describe("★ 최소 마진에 '못 미침'과 '가까움'을 섞지 않는다", () => {
+  /** 최소 마진 15% 기준. 실제 마진은 반품 충당까지 빼고 계산된다 */
+  const at = (supplyPriceKrw: number) => {
+    const p = makeProduct({
+      name: "테스트", marketplace: "OTHER",
+      listPriceKrw: 100000, supplyPriceKrw, shippingKrw: 0, minMarginPct: 15,
+      options: [makeOption("단일", supplyPriceKrw)],
+    });
+    return computeOptionProfits(p, undefined);
+  };
+
+  it("최소를 못 넘긴 옵션만 '못 미침'으로 센다", () => {
+    const s = at(84900);                       // 마진 14.82% — 15% 미달
+    expect(s.lines[0].grade).toBe("DANGER");
+    expect(s.belowMinCount).toBe(1);
+    expect(s.nearMinCount).toBe(0);
+    expect(summarizeOptions(s)).toContain("못 미칩니다");
+  });
+
+  it("★ 최소를 넘겼지만 가까우면 '가깝습니다'라고 쓴다 — 못 미친다고 하지 않는다", () => {
+    const s = at(83000);                       // 마진 약 16.8% — 15%는 넘고 20% 미만
+    expect(s.lines[0].grade).toBe("WARNING");
+    expect(s.belowMinCount).toBe(0);
+    expect(s.nearMinCount).toBe(1);
+    expect(summarizeOptions(s)).toContain("가깝습니다");
+    expect(summarizeOptions(s)).not.toContain("못 미칩니다");
+  });
+
+  it("여유가 있으면 둘 다 아니다", () => {
+    const s = at(75000);                       // 마진 24.7%
+    expect(s.belowMinCount).toBe(0);
+    expect(s.nearMinCount).toBe(0);
+    expect(summarizeOptions(s)).toContain("모두 정상");
+  });
+
+  it("역마진이 있으면 그것부터 말한다", () => {
+    const s = at(120000);
+    expect(s.lossCount).toBe(1);
+    expect(summarizeOptions(s)).toContain("팔면 손해");
   });
 });

@@ -79,12 +79,16 @@ export function healthOf(
   } else {
     checks.push({
       label: "옵션",
-      level: opt.lossCount > 0 ? "RISK" : opt.belowMinCount > 0 ? "ATTENTION" : "STABLE",
+      level: opt.lossCount > 0 ? "RISK"
+           : opt.belowMinCount > 0 || opt.nearMinCount > 0 ? "ATTENTION"
+           : "STABLE",
       detail: opt.lossCount > 0
         ? `${opt.totalCount}개 중 ${opt.lossCount}개가 팔면 손해`
         : opt.belowMinCount > 0
           ? `${opt.totalCount}개 중 ${opt.belowMinCount}개가 최소 마진 미달`
-          : `${opt.totalCount}개 모두 정상`,
+          : opt.nearMinCount > 0
+            ? `${opt.totalCount}개 중 ${opt.nearMinCount}개가 최소 마진에 가까움 — 팔 수는 있음`
+            : `${opt.totalCount}개 모두 정상`,
     });
   }
 

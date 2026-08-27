@@ -404,8 +404,10 @@ export interface OptionProfitSummary {
   lines: OptionProfit[];
   /** 역마진(순이익 < 0) 옵션 수 */
   lossCount: number;
-  /** 최소 마진 미달 옵션 수 */
+  /** 최소 마진에 못 미치는 옵션 수 */
   belowMinCount: number;
+  /** 최소 마진은 넘겼지만 가까운 옵션 수 — 못 미치는 것과 섞지 않는다 */
+  nearMinCount: number;
   totalCount: number;
   worst?: OptionProfit;
 }

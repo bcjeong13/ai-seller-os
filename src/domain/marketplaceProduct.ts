@@ -327,9 +327,13 @@ export function reviewForListing(p: Product, fee?: MarketFeeProfile, nd: NoticeD
   auto.push({
     ok: optOk,
     label: "옵션 손익",
-    detail: optOk
-      ? `${opt.totalCount}개 모두 정상`
-      : `${opt.totalCount}개 중 ${opt.lossCount}개가 팔면 손해`,
+    detail: !optOk
+      ? `${opt.totalCount}개 중 ${opt.lossCount}개가 팔면 손해`
+      : opt.belowMinCount > 0
+        ? `${opt.totalCount}개 중 ${opt.belowMinCount}개가 최소 마진 미달 — 팔리긴 합니다`
+        : opt.nearMinCount > 0
+          ? `${opt.totalCount}개 중 ${opt.nearMinCount}개가 최소 마진에 가까움`
+          : `${opt.totalCount}개 모두 정상`,
   });
   if (!optOk) blockers.push(`손해 보는 옵션 ${opt.lossCount}개를 끄거나 가격을 올리세요`);
 

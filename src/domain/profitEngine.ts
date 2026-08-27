@@ -274,14 +274,19 @@ export function computeOptionProfits(
 
   const active = lines.filter((l) => l.enabled);
   const lossCount = active.filter((l) => l.profit.netProfitKrw < 0).length;
+  // ★ "최소 마진에 못 미친다"와 "최소 마진에 가깝다"는 다르다.
+  //   한 숫자로 뭉치면 15%를 넘긴 옵션에도 "못 미칩니다"라고 쓰게 된다 — 사실이 아니다.
   const belowMinCount = active.filter(
-    (l) => l.profit.netProfitKrw >= 0 && (l.grade === "DANGER" || l.grade === "WARNING")
+    (l) => l.profit.netProfitKrw >= 0 && l.grade === "DANGER"
+  ).length;
+  const nearMinCount = active.filter(
+    (l) => l.profit.netProfitKrw >= 0 && l.grade === "WARNING"
   ).length;
   const worst = active.length
     ? active.reduce((a, b) => (b.profit.netProfitKrw < a.profit.netProfitKrw ? b : a))
     : undefined;
 
-  return { lines, lossCount, belowMinCount, totalCount: active.length, worst };
+  return { lines, lossCount, belowMinCount, nearMinCount, totalCount: active.length, worst };
 }
 
 /** 옵션 요약 → 상품 전체 한 줄 평 */
@@ -292,6 +297,9 @@ export function summarizeOptions(s: OptionProfitSummary): string {
   }
   if (s.belowMinCount > 0) {
     return `${s.totalCount}개 옵션 중 ${s.belowMinCount}개가 최소 마진에 못 미칩니다.`;
+  }
+  if (s.nearMinCount > 0) {
+    return `${s.totalCount}개 옵션 중 ${s.nearMinCount}개가 최소 마진에 가깝습니다 — 팔 수는 있습니다.`;
   }
   return `${s.totalCount}개 옵션 모두 정상입니다.`;
 }
