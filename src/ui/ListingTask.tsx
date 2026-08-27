@@ -673,7 +673,7 @@ function NaverFill({ product, mp, onCopy }: {
             앱에서 <b>버튼 한 번으로</b> 하시려면 순서대로 해주세요:
           </div>
           <ol className="howto" style={{ marginTop: 6 }}>
-            <li><code>edge://extensions</code> → AI Seller OS 수집기 → 🔄 → 버전 <b>0.9.1</b> 확인</li>
+            <li><code>edge://extensions</code> → AI Seller OS 수집기 → 🔄 → 버전 <b>0.9.2</b> 확인</li>
             <li><b>그다음에</b> 이 화면을 새로고침 (F5) — 확장을 고치면 이미 열려 있던 탭에는 붙지 않습니다</li>
             <li>아래 <b>[연결 확인]</b></li>
           </ol>

@@ -2,7 +2,33 @@
 
 const APP_URL = "http://localhost:5173";
 const $ = (id) => document.getElementById(id);
-const val = (id) => ($(id).value || "").trim();
+const val = (id) => (($(id) || {}).value || "").trim();
+
+/**
+ * 버튼 하나가 없다고 팝업 전체가 죽으면 안 된다.
+ * 옛 팝업이 남아 있을 때 아무 반응 없이 멈추던 문제를 막는다.
+ */
+function on(id, ev, fn) {
+  const el = $(id);
+  if (!el) { console.warn("[AISOS] 없는 요소:", id); return; }
+  el.addEventListener(ev, async (e) => {
+    try { await fn(e); }
+    catch (err) {
+      console.error("[AISOS]", id, err);
+      const s = $("fillStatus") || $("status");
+      if (s) s.textContent = "오류가 났습니다: " + (err && err.message ? err.message : err);
+    }
+  });
+}
+
+/** 지금 실행 중인 버전 — 눈으로 확인할 수 있어야 한다 */
+function showVersion() {
+  try {
+    const v = chrome.runtime.getManifest().version;
+    const el = $("ver");
+    if (el) el.textContent = "v" + v;
+  } catch (e) { /* 무시 */ }
+}
 
 // 국내 도매 사이트로 인식할 호스트 (그 외에서도 수동 입력은 가능)
 const WHOLESALE_HOSTS = /domeggook|domemedb|domeme|ownerclan|onch3|pandarose|sellforyou|dodomall|w-dome/i;
@@ -301,7 +327,7 @@ function extOf(url) {
   return m ? m[1].toLowerCase() : "jpg";
 }
 
-$("dl").addEventListener("click", async () => {
+on("dl", "click", async () => {
   const picked = IMAGES.filter((i) => i.checked);
   if (picked.length === 0) {
     $("dlnote").textContent = "선택된 이미지가 없습니다.";
@@ -323,8 +349,8 @@ $("dl").addEventListener("click", async () => {
   $("dlnote").textContent = "✅ " + ok + "/" + picked.length + "장 저장 — 다운로드 폴더 > AISOS > " + folder;
 });
 
-$("selall").addEventListener("click", () => { IMAGES.forEach((i) => (i.checked = true)); renderImages(); });
-$("selnone").addEventListener("click", () => { IMAGES.forEach((i) => (i.checked = false)); renderImages(); });
+on("selall", "click", () => { IMAGES.forEach((i) => (i.checked = true)); renderImages(); });
+on("selnone", "click", () => { IMAGES.forEach((i) => (i.checked = false)); renderImages(); });
 
 function buildBlock() {
   const picked = IMAGES.filter((i) => i.checked).map((i) => i.src);
@@ -347,7 +373,7 @@ function buildBlock() {
   return lines.join("\n");
 }
 
-$("copy").addEventListener("click", async () => {
+on("copy", "click", async () => {
   try {
     await navigator.clipboard.writeText(buildBlock());
     $("done").textContent = "✅ 복사됨 — 앱의 '상품 추가 → 가져오기'에 붙여넣기";
@@ -356,7 +382,7 @@ $("copy").addEventListener("click", async () => {
   }
 });
 
-$("open").addEventListener("click", () => {
+on("open", "click", () => {
   chrome.tabs.create({ url: APP_URL });
 });
 
@@ -436,7 +462,7 @@ function parseWatchList(text) {
     .filter((x) => x && x.id && /^https?:\/\//i.test(x.url));
 }
 
-$("watchRun").addEventListener("click", async () => {
+on("watchRun", "click", async () => {
   const items = parseWatchList($("watchList").value);
   if (!items.length) {
     $("watchStatus").textContent = "점검 목록이 없습니다. 앱의 [가격 점검 목록 복사]를 눌러 붙여넣으세요.";
@@ -470,7 +496,7 @@ $("watchRun").addEventListener("click", async () => {
   $("watchRun").disabled = false;
 });
 
-$("watchCopy").addEventListener("click", async () => {
+on("watchCopy", "click", async () => {
   try {
     await navigator.clipboard.writeText($("watchOut").value);
     $("watchStatus").textContent = "✅ 복사됨 — 앱의 [점검 결과 붙여넣기]에 넣으세요.";
@@ -569,7 +595,7 @@ function listProbe() {
   return { items: out, noName: noName };
 }
 
-$("listRun").addEventListener("click", async () => {
+on("listRun", "click", async () => {
   $("listStatus").textContent = "읽는 중…";
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -594,7 +620,7 @@ $("listRun").addEventListener("click", async () => {
   }
 });
 
-$("listCopy").addEventListener("click", async () => {
+on("listCopy", "click", async () => {
   try {
     await navigator.clipboard.writeText($("listOut").value);
     $("listStatus").textContent = "✅ 복사됨 — 앱 → 소싱센터에 붙여넣으세요.";
@@ -649,7 +675,7 @@ function compProbe() {
   return out;
 }
 
-$("compRun").addEventListener("click", async () => {
+on("compRun", "click", async () => {
   $("compStatus").textContent = "읽는 중…";
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -671,7 +697,7 @@ $("compRun").addEventListener("click", async () => {
   }
 });
 
-$("compCopy").addEventListener("click", async () => {
+on("compCopy", "click", async () => {
   try {
     await navigator.clipboard.writeText($("compOut").value);
     $("compStatus").textContent = "✅ 복사됨 — 앱 STEP3 경쟁상품 칸에 붙여넣으세요.";
@@ -747,7 +773,7 @@ async function surveyOne(keyword) {
   }
 }
 
-$("surveyRun").addEventListener("click", async () => {
+on("surveyRun", "click", async () => {
   const items = parseSurveyList($("surveyList").value);
   if (!items.length) {
     $("surveyStatus").textContent = "조사 목록이 없습니다. 앱 소싱센터의 [시세 조사 목록 복사]를 누르세요.";
@@ -774,7 +800,7 @@ $("surveyRun").addEventListener("click", async () => {
   $("surveyRun").disabled = false;
 });
 
-$("surveyCopy").addEventListener("click", async () => {
+on("surveyCopy", "click", async () => {
   try {
     await navigator.clipboard.writeText($("surveyOut").value);
     $("surveyStatus").textContent = "✅ 복사됨 — 앱 소싱센터에 붙여넣으세요.";
@@ -805,8 +831,24 @@ async function runFill(text, note) {
   }
 
   $("fillStatus").textContent = "채우는 중…";
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let host = "";
+  try { host = new URL(tab.url || "").host; } catch (e) { host = tab.url || "알 수 없음"; }
+
+  // 앱 탭에서 눌렀을 때가 가장 흔한 실수다 — 먼저 잡아준다
+  if (/localhost|127\.0\.0\.1/.test(host)) {
+    $("fillStatus").textContent =
+      "지금 보고 있는 탭이 앱 화면입니다. 네이버 상품등록 탭으로 옮긴 뒤 다시 눌러주세요.";
+    return;
+  }
+  if (host.indexOf("naver") < 0) {
+    $("fillStatus").textContent =
+      "지금 보고 있는 탭은 " + host + " 입니다. 네이버 상품등록 화면에서 눌러주세요.";
+    return;
+  }
+
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const res = await chrome.scripting.executeScript({
       target: { tabId: tab.id }, func: aisosFillProbe, args: [payload],
     });
@@ -818,7 +860,7 @@ async function runFill(text, note) {
     }
     if (!r.filled.length) {
       $("fillStatus").textContent =
-        "채운 칸이 없습니다. 지금 보고 있는 화면이 상품등록 화면인지 확인해 주세요.";
+        host + " 에서 채울 칸을 찾지 못했습니다. 상품등록 화면인지 확인해 주세요.";
       return;
     }
     $("fillStatus").textContent =
@@ -827,12 +869,13 @@ async function runFill(text, note) {
       (r.missed.length ? " 못 찾은 칸: " + aisosLabelList(r.missed) + "." : "") +
       " 나머지를 채우고 네이버에서 직접 저장하세요 — 저장은 하지 않았습니다.";
   } catch (e) {
-    $("fillStatus").textContent = "이 페이지에서는 동작하지 않습니다.";
+    $("fillStatus").textContent =
+      host + " 에서 동작하지 않습니다: " + (e && e.message ? e.message : e);
   }
 }
 
 // 붙여넣기 없이 — 복사해둔 값을 바로 읽는다
-$("fillClip").addEventListener("click", async () => {
+on("fillClip", "click", async () => {
   let text = "";
   try {
     text = await navigator.clipboard.readText();
@@ -844,7 +887,7 @@ $("fillClip").addEventListener("click", async () => {
   runFill(text, "");
 });
 
-$("fillRun").addEventListener("click", () => runFill($("fillIn").value, ""));
+on("fillRun", "click", () => runFill($("fillIn").value, ""));
 
 // ------------------------------------------------------------
 // 판매자센터 등록화면 조사
@@ -906,7 +949,7 @@ function formProbe() {
   return { url: location.hostname + location.pathname, fields: out, iframes: iframes };
 }
 
-$("formRun").addEventListener("click", async () => {
+on("formRun", "click", async () => {
   $("formStatus").textContent = "읽는 중…";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -928,7 +971,7 @@ $("formRun").addEventListener("click", async () => {
   }
 });
 
-$("formCopy").addEventListener("click", async () => {
+on("formCopy", "click", async () => {
   try {
     await navigator.clipboard.writeText($("formOut").value);
     $("formStatus").textContent = "✅ 복사됨";
@@ -937,4 +980,5 @@ $("formCopy").addEventListener("click", async () => {
   }
 });
 
+showVersion();
 run();
