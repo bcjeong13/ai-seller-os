@@ -60,8 +60,13 @@
       상품명·판매가·재고수량·상세설명이 채워집니다.
       <b>저장은 하지 않습니다</b> — 확인하고 직접 저장하세요.
     </div>
-    <textarea id="fillIn" rows="3" placeholder="##AISOS-FILL## 로 시작하는 값을 붙여넣기"></textarea>
-    <button id="fillRun" class="primary wide">채우기</button>
+    <button id="fillClip" class="primary wide">📋 복사한 값으로 바로 채우기</button>
+    <div class="muted tiny">앱에서 <b>[자동 채우기 값 복사]</b>를 누르셨다면 이것만 누르시면 됩니다.</div>
+    <details class="sub">
+      <summary>직접 붙여넣기</summary>
+      <textarea id="fillIn" rows="3" placeholder="##AISOS-FILL## 로 시작하는 값을 붙여넣기"></textarea>
+      <button id="fillRun" class="wide">채우기</button>
+    </details>
     <div class="muted tiny" id="fillStatus"></div>
   </details>
 

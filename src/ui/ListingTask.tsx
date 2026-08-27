@@ -635,7 +635,11 @@ function NaverFill({ product, mp, onCopy }: {
       ) : (
         <ol className="howto" style={{ marginTop: 6 }}>
           <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
-          <li>네이버 <b>상품등록</b> 화면에서 확장 → <b>🪄 등록화면 자동 채우기</b> → 붙여넣고 <b>[채우기]</b></li>
+          <li>
+            네이버 <b>상품등록 화면에서</b> 확장 → <b>🪄 등록화면 자동 채우기</b> →
+            <b> [📋 복사한 값으로 바로 채우기]</b>
+            <div className="tiny muted">붙여넣을 필요 없습니다. 복사해둔 값을 확장이 알아서 읽습니다.</div>
+          </li>
           <li>나머지 칸을 직접 채우고 <b>네이버에서 저장</b> — 확장은 저장하지 않습니다</li>
         </ol>
       )}
@@ -662,10 +666,14 @@ function NaverFill({ product, mp, onCopy }: {
 
       {!extReady && (
         <div className="warn-note" style={{ marginTop: 8 }}>
-          <b>확장을 찾지 못했습니다</b> — 지금은 복사해서 옮기셔야 합니다.
-          버튼 한 번으로 채우려면 <b>순서대로</b> 해주세요:
+          <b>확장이 이 화면과 연결되지 않았습니다.</b> 자동 채우기는 그대로 됩니다 —
+          위 <b>[값 복사]</b> 하시고 네이버 화면에서 확장의
+          <b> [📋 복사한 값으로 바로 채우기]</b>를 누르시면 됩니다. 두 번이면 끝납니다.
+          <div style={{ marginTop: 8 }}>
+            앱에서 <b>버튼 한 번으로</b> 하시려면 순서대로 해주세요:
+          </div>
           <ol className="howto" style={{ marginTop: 6 }}>
-            <li><code>edge://extensions</code> → AI Seller OS 수집기 → 🔄 → 버전 <b>0.9.0</b> 확인</li>
+            <li><code>edge://extensions</code> → AI Seller OS 수집기 → 🔄 → 버전 <b>0.9.1</b> 확인</li>
             <li><b>그다음에</b> 이 화면을 새로고침 (F5) — 확장을 고치면 이미 열려 있던 탭에는 붙지 않습니다</li>
             <li>아래 <b>[연결 확인]</b></li>
           </ol>

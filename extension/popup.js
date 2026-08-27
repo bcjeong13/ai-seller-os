@@ -795,10 +795,12 @@ $("surveyCopy").addEventListener("click", async () => {
 // 채우기 로직은 fill.js 에 있다 — 팝업과 백그라운드가 같은 코드를 쓴다.
 
 
-$("fillRun").addEventListener("click", async () => {
-  const payload = aisosParseFill($("fillIn").value);
+// 값 하나로 여러 곳에서 부르므로 함수로 뺀다
+async function runFill(text, note) {
+  const payload = aisosParseFill(text);
   if (!payload.site) {
-    $("fillStatus").textContent = "값이 아닙니다. 앱 등록센터의 [🪄 자동 채우기 값 복사]로 받은 것을 넣어주세요.";
+    $("fillStatus").textContent =
+      "채울 값이 없습니다. 앱 등록센터에서 [자동 채우기 값 복사]를 먼저 눌러주세요.";
     return;
   }
 
@@ -816,17 +818,33 @@ $("fillRun").addEventListener("click", async () => {
     }
     if (!r.filled.length) {
       $("fillStatus").textContent =
-        "채운 칸이 없습니다. 상품등록 화면이 맞는지 확인해 주세요.";
+        "채운 칸이 없습니다. 지금 보고 있는 화면이 상품등록 화면인지 확인해 주세요.";
       return;
     }
     $("fillStatus").textContent =
+      (note ? note + " " : "") +
       "✅ " + aisosLabelList(r.filled) + " 채웠습니다." +
       (r.missed.length ? " 못 찾은 칸: " + aisosLabelList(r.missed) + "." : "") +
-      " 확인하고 직접 저장하세요 — 저장은 하지 않았습니다.";
+      " 나머지를 채우고 네이버에서 직접 저장하세요 — 저장은 하지 않았습니다.";
   } catch (e) {
     $("fillStatus").textContent = "이 페이지에서는 동작하지 않습니다.";
   }
+}
+
+// 붙여넣기 없이 — 복사해둔 값을 바로 읽는다
+$("fillClip").addEventListener("click", async () => {
+  let text = "";
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (e) {
+    $("fillStatus").textContent =
+      "클립보드를 읽지 못했습니다. 아래 [직접 붙여넣기]를 열어 넣어주세요.";
+    return;
+  }
+  runFill(text, "");
 });
+
+$("fillRun").addEventListener("click", () => runFill($("fillIn").value, ""));
 
 // ------------------------------------------------------------
 // 판매자센터 등록화면 조사

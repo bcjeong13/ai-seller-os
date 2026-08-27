@@ -69,3 +69,6 @@ button:hover { opacity: 0.92; }
 .watch label { margin-top:8px; }
 .watch button { margin-top:8px; }
 .watch .tiny { margin-top:6px; }
+
+details.sub { margin-top:8px; }
+details.sub summary { cursor:pointer; font-size:11.5px; color:#8a9099; }

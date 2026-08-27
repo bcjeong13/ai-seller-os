@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "AI Seller OS 수집기",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "국내 도매 사이트(도매꾹 등) 상품 페이지에서 상품명·공급가·배송비·옵션·스펙·반품정책·상세 이미지를 수집해 AI Seller OS로 보냅니다.",
   "permissions": [
     "activeTab",
     "scripting",
     "downloads",
-    "tabs"
+    "tabs",
+    "clipboardRead"
   ],
   "host_permissions": [
     "http://*/*",
