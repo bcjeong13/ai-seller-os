@@ -11,7 +11,7 @@
 import { useState, useEffect } from "react";
 import type { Product, Marketplace, SellerReturnPolicy } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
-import { getProduct, feeProfileOf, setListing, useStore, updateProduct, getSettings, updateSettings, DEFAULT_LISTING_STOCK } from "../store/db";
+import { getProduct, feeProfileOf, setListing, clearListings, useStore, updateProduct, getSettings, updateSettings, DEFAULT_LISTING_STOCK } from "../store/db";
 import { buildListingHtml } from "../domain/listingHtml";
 import { judgeProductNotice, NOTICE_LABEL } from "../domain/notice";
 import {
@@ -493,7 +493,24 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
       <div className="card pad">
         <div className="section-label">
           어디에 올릴까요 <span className="tiny muted">{done.length}/{ALL_CHANNELS.length} 올림</span>
+          {done.length > 0 && (
+            <button className="btn xs" style={{ marginLeft: 8 }}
+                    onClick={() => {
+                      if (confirm("올림 표시를 전부 지웁니다.\n실제 마켓에 올라간 상품은 건드리지 않습니다.\n\n계속할까요?")) {
+                        clearListings(product.id);
+                      }
+                    }}>
+              올림 표시 지우기
+            </button>
+          )}
         </div>
+        {done.length > 0 && (
+          <div className="warn-note" style={{ marginBottom: 10 }}>
+            <b>{done.length}곳에 올렸다고 표시되어 있습니다.</b> 시험 삼아 누른 것이면
+            [올림 표시 지우기]로 되돌리세요. 표시가 남아 있으면 「오늘 할 일」의
+            마켓에 등록에서 빠져 잊게 됩니다.
+          </div>
+        )}
         <p className="hint" style={{ marginTop: 0 }}>
           마켓마다 상품명 길이·필수 항목이 다릅니다. 고른 마켓에 맞춰 각각 변환해 드립니다.
         </p>
@@ -604,10 +621,17 @@ function NaverFill({ product, mp, onCopy }: {
         <span className="tiny muted">9개 칸</span>
       </div>
       {extReady ? (
-        <p className="hint" style={{ marginTop: 4 }}>
-          네이버 <b>상품등록 화면을 열어둔 채로</b> 아래 버튼을 누르면 그 탭에 바로 채워집니다.
-          <b> 저장은 하지 않습니다</b> — 확인하고 직접 저장하세요.
-        </p>
+        <>
+          <p className="hint" style={{ marginTop: 4 }}>
+            네이버 <b>상품등록 화면을 열어둔 채로</b> 아래 버튼을 누르면 그 탭에 <b>값이 채워집니다.</b>
+          </p>
+          <div className="warn-note" style={{ marginTop: 8 }}>
+            ⚠️ <b>이 버튼은 상품을 올리지 않습니다.</b> 칸만 채웁니다.
+            <br />
+            <b>진짜 등록은 네이버 화면의 [저장하기]입니다.</b> 그걸 누르기 전까지는
+            아무 데도 올라가지 않습니다. 카테고리·이미지·출고지를 마저 채우고 직접 누르세요.
+          </div>
+        </>
       ) : (
         <ol className="howto" style={{ marginTop: 6 }}>
           <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
@@ -625,7 +649,7 @@ function NaverFill({ product, mp, onCopy }: {
         {extReady ? (
           <>
             <button className="btn primary lg" disabled={busy} onClick={runFill}>
-              {busy ? "채우는 중…" : "🚀 네이버에 바로 채우기"}
+              {busy ? "채우는 중…" : "🚀 네이버 칸 채우기 (저장 안 함)"}
             </button>
             <button className="btn sm" onClick={copyFill}>값만 복사</button>
           </>

@@ -279,6 +279,21 @@ export function setListing(productId: string, marketplace: Marketplace, patch: {
   }));
 }
 
+/**
+ * 올림 표시를 전부 지운다.
+ * 시험 삼아 눌러본 것을 되돌릴 길이 있어야 한다 —
+ * 표시가 남아 있으면 「오늘 할 일」의 마켓에 등록에서 빠져 영영 안 올라간다.
+ */
+export function clearListings(productId: string) {
+  mutateProduct(productId, (p) => ({
+    ...p,
+    listings: p.listings.map((l) => ({
+      ...l, listed: false, pending: false, listedAt: undefined, marketProductNo: undefined,
+    })),
+    events: [{ at: Date.now(), type: "LISTING", message: "올림 표시 전체 해제" }, ...p.events],
+  }));
+}
+
 // ------------------------------------------------------------
 // 주문
 // ------------------------------------------------------------
