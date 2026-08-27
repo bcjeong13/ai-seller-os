@@ -8,7 +8,7 @@
 //   코드가 볼 수 있는 것은 코드가 판정하고, 사람에게는 볼 수 없는 것만 묻는다.
 // ============================================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Product, Marketplace, SellerReturnPolicy } from "../domain/types";
 import { ALL_CHANNELS } from "../domain/types";
 import { getProduct, feeProfileOf, setListing, useStore, updateProduct, getSettings, updateSettings, DEFAULT_LISTING_STOCK } from "../store/db";
@@ -21,6 +21,7 @@ import {
 import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
 import { formatKrw } from "../domain/money";
 import { buildFillBlock, NOT_FILLED } from "../domain/marketFill";
+import { requestFill, isExtReady, onExtReady, fieldNames } from "../store/extBridge";
 import { CHANNEL_META } from "./meta";
 
 /** 설정에 적어둔 공통 고시정보 — 상품마다 다시 치지 않게 한다 */
@@ -550,18 +551,38 @@ function NaverFill({ product, mp, onCopy }: {
   const policy = product.sellerReturnPolicy ?? defaultSellerPolicy(product.supplierReturnPolicy);
   const noAsPhone = !getSettings().asPhone?.trim();
 
-  const copyFill = () => {
+  const [extReady, setExtReady] = useState(isExtReady());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEffect(() => onExtReady(setExtReady), []);
+
+  const block = () => {
     updateSettings({ listingStockQty: stock });
-    onCopy(
-      buildFillBlock(mp, {
-        marketplace: "NAVER",
-        stockQty: stock,
-        categoryHint: hint,
-        returnFeeKrw: policy.returnShippingKrw,
-        exchangeFeeKrw: policy.exchangeShippingKrw,
-        asPhone: getSettings().asPhone,
-      }),
-      "자동 채우기 값"
+    return buildFillBlock(mp, {
+      marketplace: "NAVER",
+      stockQty: stock,
+      categoryHint: hint,
+      returnFeeKrw: policy.returnShippingKrw,
+      exchangeFeeKrw: policy.exchangeShippingKrw,
+      asPhone: getSettings().asPhone,
+    });
+  };
+
+  const copyFill = () => onCopy(block(), "자동 채우기 값");
+
+  const runFill = async () => {
+    setBusy(true);
+    setMsg("");
+    const r = await requestFill(block());
+    setBusy(false);
+    setMsg(
+      !r.ok
+        ? `⚠️ ${r.reason ?? "채우지 못했습니다"}`
+        : !r.filled?.length
+          ? "⚠️ 채운 칸이 없습니다. 네이버 상품등록 화면이 열려 있는지 확인해 주세요."
+          : `✅ ${fieldNames(r.filled)} 채웠습니다.` +
+            (r.missed?.length ? ` 못 찾은 칸: ${fieldNames(r.missed)}.` : "") +
+            " 네이버 탭에서 확인하고 직접 저장하세요 — 저장은 하지 않았습니다."
     );
   };
 
@@ -571,19 +592,45 @@ function NaverFill({ product, mp, onCopy }: {
         🪄 <b>자동 채우기</b>
         <span className="tiny muted">9개 칸</span>
       </div>
-      <ol className="howto" style={{ marginTop: 6 }}>
-        <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
-        <li>네이버 <b>상품등록</b> 화면에서 확장 → <b>🪄 등록화면 자동 채우기</b> → 붙여넣고 <b>[채우기]</b></li>
-        <li>나머지 칸을 직접 채우고 <b>네이버에서 저장</b> — 확장은 저장하지 않습니다</li>
-      </ol>
+      {extReady ? (
+        <p className="hint" style={{ marginTop: 4 }}>
+          네이버 <b>상품등록 화면을 열어둔 채로</b> 아래 버튼을 누르면 그 탭에 바로 채워집니다.
+          <b> 저장은 하지 않습니다</b> — 확인하고 직접 저장하세요.
+        </p>
+      ) : (
+        <ol className="howto" style={{ marginTop: 6 }}>
+          <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
+          <li>네이버 <b>상품등록</b> 화면에서 확장 → <b>🪄 등록화면 자동 채우기</b> → 붙여넣고 <b>[채우기]</b></li>
+          <li>나머지 칸을 직접 채우고 <b>네이버에서 저장</b> — 확장은 저장하지 않습니다</li>
+        </ol>
+      )}
+
       <div className="btn-row">
         <label className="fill-stock">
           재고수량
           <input type="number" min={1} value={stock}
                  onChange={(e) => setStock(Math.max(1, +e.target.value || 1))} />
         </label>
-        <button className="btn sm primary" onClick={copyFill}>🪄 자동 채우기 값 복사</button>
+        {extReady ? (
+          <>
+            <button className="btn primary lg" disabled={busy} onClick={runFill}>
+              {busy ? "채우는 중…" : "🚀 네이버에 바로 채우기"}
+            </button>
+            <button className="btn sm" onClick={copyFill}>값만 복사</button>
+          </>
+        ) : (
+          <button className="btn sm primary" onClick={copyFill}>🪄 자동 채우기 값 복사</button>
+        )}
       </div>
+
+      {msg && <div className="tiny" style={{ marginTop: 8, lineHeight: 1.6 }}>{msg}</div>}
+
+      {!extReady && (
+        <div className="tiny muted" style={{ marginTop: 6 }}>
+          확장을 찾지 못했습니다. <b>0.9.0 이상</b>으로 새로고침한 뒤 이 화면도 새로고침하면
+          버튼 한 번으로 채울 수 있습니다.
+        </div>
+      )}
       {noAsPhone && (
         <div className="warn-note" style={{ marginTop: 8 }}>
           ⚠️ <b>설정 → 내 판매자 정보</b>에 A/S 연락처가 비어 있습니다. 채워두시면
