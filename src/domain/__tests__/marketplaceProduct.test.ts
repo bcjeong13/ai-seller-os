@@ -211,3 +211,40 @@ describe("상세페이지 HTML", () => {
     }
   });
 });
+
+describe("★ 인증·규제 부담 — 등록 단계에서도 검사한다", () => {
+  it("소싱을 거치지 않고 담은 상품도 검사받는다", () => {
+    const food = sample({ name: "유기농 올레샷 100% 올리브오일 1개 + 레몬즙 스틱 1개" });
+    const r = reviewForListing(food, fee);
+    const line = r.auto.find((a) => a.label === "인증·규제");
+    expect(line?.ok).toBe(false);
+    expect(line?.detail).toContain("식품");
+  });
+
+  it("위험군이면 사람에게 한 가지를 더 묻는다", () => {
+    const food = sample({ name: "홍삼 스틱 30포" });
+    expect(reviewForListing(food, fee).askHuman.map((q) => q.key)).toContain("risk");
+  });
+
+  it("일반 상품은 2가지만 묻는다", () => {
+    expect(reviewForListing(sample(), fee).askHuman).toHaveLength(2);
+  });
+
+  it("★ 막지 않는다 — 신고를 마친 사람까지 못 팔면 안 된다", () => {
+    const food = sample({ name: "올리브오일 500ml" });
+    expect(reviewForListing(food, fee).blockers.some((b) => b.includes("식품"))).toBe(false);
+  });
+
+  it("★ 위험군은 확인 체크 없이 승인이 유효해지지 않는다", () => {
+    const food = sample({ name: "올리브오일 500ml" });
+    const half: Product = {
+      ...food,
+      listingApproval: {
+        approvedAt: 0, approvedPriceKrw: food.price.buyerPaidKrw,
+        imageChecked: true, wordingChecked: true,
+      },
+    };
+    expect(approvalValid(half)).toBe(false);
+    expect(approvalValid({ ...half, listingApproval: { ...half.listingApproval!, riskChecked: true } })).toBe(true);
+  });
+});

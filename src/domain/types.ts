@@ -160,6 +160,8 @@ export interface ListingApproval {
   /** 사람만 확인할 수 있는 항목들 */
   imageChecked: boolean;
   wordingChecked: boolean;
+  /** 인증·규제 부담이 있는 상품에서만 묻는다 */
+  riskChecked?: boolean;
   /** 승인 당시 상세설명 (나중에 바뀌었는지 비교용) */
   htmlHash?: string;
 }

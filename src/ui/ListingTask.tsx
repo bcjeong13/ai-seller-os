@@ -5,7 +5,7 @@
 //   프로그램은 "무엇을 어디에 넣을지" 만들어주고, 어디까지 했는지 추적한다.
 //
 // ★ 체크박스를 늘어놓지 않는다 (§초보자는 전부 체크하고 넘어간다).
-//   코드가 볼 수 있는 것은 코드가 판정하고, 사람에게는 2가지만 묻는다.
+//   코드가 볼 수 있는 것은 코드가 판정하고, 사람에게는 볼 수 없는 것만 묻는다.
 // ============================================================
 
 import { useState } from "react";
@@ -366,20 +366,25 @@ function ApproveCard({ product, approved }: { product: Product; approved: boolea
   const fee = feeProfileOf(product.marketplace);
   const r = reviewForListing(product, fee, noticeDefaults());
   const a = product.listingApproval;
-  const [img, setImg] = useState(a?.imageChecked ?? false);
-  const [word, setWord] = useState(a?.wordingChecked ?? false);
+  const [checked, setChecked] = useState<Record<string, boolean>>({
+    image: a?.imageChecked ?? false,
+    wording: a?.wordingChecked ?? false,
+    risk: a?.riskChecked ?? false,
+  });
 
   const staleApproval = !!a && !approved && a.approvedPriceKrw !== product.price.buyerPaidKrw;
+  const allChecked = r.askHuman.every((q) => checked[q.key]);
 
   const approve = () => {
     updateProduct(product.id, {
       // 이미지 확인은 한 곳에서만 한다 — 승인에서 확인하면 상품 쪽도 함께 켠다
-      imageRightsConfirmed: img,
+      imageRightsConfirmed: checked.image,
       listingApproval: {
         approvedAt: Date.now(),
         approvedPriceKrw: product.price.buyerPaidKrw,
-        imageChecked: img,
-        wordingChecked: word,
+        imageChecked: checked.image,
+        wordingChecked: checked.wording,
+        riskChecked: checked.risk,
       },
     });
   };
@@ -408,22 +413,18 @@ function ApproveCard({ product, approved }: { product: Product; approved: boolea
         </div>
       )}
 
-      <label className="ask-row">
-        <input type="checkbox" checked={img} onChange={(e) => setImg(e.target.checked)} />
-        <div>
-          <b>{r.askHuman[0].label}</b>
-          <div className="tiny muted">{r.askHuman[0].detail}</div>
-        </div>
-      </label>
-      <label className="ask-row">
-        <input type="checkbox" checked={word} onChange={(e) => setWord(e.target.checked)} />
-        <div>
-          <b>{r.askHuman[1].label}</b>
-          <div className="tiny muted">{r.askHuman[1].detail}</div>
-        </div>
-      </label>
+      {r.askHuman.map((q) => (
+        <label key={q.key} className={"ask-row" + (q.key === "risk" ? " risky" : "")}>
+          <input type="checkbox" checked={!!checked[q.key]}
+                 onChange={(e) => setChecked((c) => ({ ...c, [q.key]: e.target.checked }))} />
+          <div>
+            <b>{q.key === "risk" ? "⚠️ " : ""}{q.label}</b>
+            <div className="tiny muted">{q.detail}</div>
+          </div>
+        </label>
+      ))}
 
-      <button className="btn primary lg" disabled={!img || !word || r.blocked} onClick={approve}>
+      <button className="btn primary lg" disabled={!allChecked || r.blocked} onClick={approve}>
         {r.blocked ? "먼저 위의 문제를 고쳐주세요" : "✅ 이 상품 등록 승인"}
       </button>
     </div>

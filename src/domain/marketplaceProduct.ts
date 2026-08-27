@@ -22,6 +22,7 @@ import { judgeProductNotice, noticeRows, type NoticeDefaults } from "./notice";
 import { defaultSellerPolicy, returnNoticeLines, comparePolicies, worstGap } from "./sellerPolicy";
 import { computeOptionProfits } from "./profitEngine";
 import { isJunkOptionName } from "./productImport";
+import { judgeRisk } from "./riskCategory";
 
 import { formatKrw } from "./money";
 
@@ -284,11 +285,20 @@ export interface ReviewLine {
   detail: string;
 }
 
+/** 사람에게 묻는 것 — risk는 인증·규제 부담이 있는 상품에서만 나온다 */
+export type HumanCheck = "image" | "wording" | "risk";
+
+/** 이 상품이 사람에게 무엇을 물어야 하는가 */
+export function humanChecksFor(p: Product): HumanCheck[] {
+  const base: HumanCheck[] = ["image", "wording"];
+  return judgeRisk(p.name).level === "HIGH" ? [...base, "risk"] : base;
+}
+
 export interface ListingReview {
   /** 코드가 판정한 것 — 사람이 체크할 필요 없다 */
   auto: ReviewLine[];
   /** 사람만 볼 수 있는 것 — 이것만 묻는다 */
-  askHuman: { key: "image" | "wording"; label: string; detail: string }[];
+  askHuman: { key: HumanCheck; label: string; detail: string }[];
   /** 등록을 막아야 하는가 */
   blocked: boolean;
   blockers: string[];
@@ -360,6 +370,22 @@ export function reviewForListing(p: Product, fee?: MarketFeeProfile, nd: NoticeD
     detail: html.todos.length === 0 ? "만들어졌습니다" : html.todos[0],
   });
 
+  // 인증·규제 부담
+  //
+  // ★ 지금까지 이 검사는 소싱 단계에만 있었다. 소싱센터를 거치지 않고 바로
+  //   담은 상품은 한 번도 검사받지 않고 등록까지 갔다.
+  // ★ "팔면 안 된다"고 판정하지 않는다. 확인해야 할 것만 알린다.
+  const risk = judgeRisk(p.name);
+  auto.push({
+    ok: risk.level === "LOW",
+    label: "인증·규제",
+    detail: risk.level === "LOW"
+      ? risk.category
+      : `${risk.category} — ${risk.why}`,
+  });
+  // ★ 막지 않는다. 정당하게 신고를 마친 사람까지 못 팔게 되면 안 된다.
+  //   대신 사람에게 물어본다 — 확인 여부는 사람만 안다.
+
   // 팔면 안 되는 상품
   if (p.legalBlock) blockers.push("팔면 안 되는 상품으로 표시되어 있습니다");
 
@@ -378,6 +404,15 @@ export function reviewForListing(p: Product, fee?: MarketFeeProfile, nd: NoticeD
         label: "원본에 없는 효능·기능을 넣지 않았습니까?",
         detail: "직접 문구를 고쳤다면 확인하세요. 과장 광고는 반품·신고로 돌아옵니다.",
       },
+      ...(risk.level === "HIGH"
+        ? [{
+            key: "risk" as const,
+            label: `${risk.category} — 인증·신고 요건을 확인했습니까?`,
+            detail:
+              `${risk.why} 확인할 것: ${risk.check ?? "관련 인증·신고"}. ` +
+              `프로그램은 법적 판단을 하지 않습니다 — 관할 기관 기준으로 직접 확인하셔야 합니다.`,
+          }]
+        : []),
     ],
     blocked: blockers.length > 0,
     blockers,
@@ -388,5 +423,9 @@ export function reviewForListing(p: Product, fee?: MarketFeeProfile, nd: NoticeD
 export function approvalValid(p: Product): boolean {
   const a = p.listingApproval;
   if (!a) return false;
-  return a.approvedPriceKrw === p.price.buyerPaidKrw && a.imageChecked && a.wordingChecked;
+  if (a.approvedPriceKrw !== p.price.buyerPaidKrw) return false;
+  if (!a.imageChecked || !a.wordingChecked) return false;
+  // 인증·규제 부담이 있는 상품은 그 확인까지 있어야 한다
+  if (humanChecksFor(p).includes("risk") && !a.riskChecked) return false;
+  return true;
 }
