@@ -796,11 +796,15 @@ function fillProbe(payload) {
   // 마켓별 칸 — 2026-08 네이버 스마트스토어 상품등록에서 확인
   var MAP = {
     NAVER: {
-      name:     ['[name="product.name"]'],
-      price:    ['#prd_price2', '[name="product.salePrice"]'],
-      stock:    ['#stock', '[name="product.stockQuantity"]'],
-      category: ['[name="category"]'],
-      detail:   ['textarea[name="editorContent"]'],
+      name:        ['[name="product.name"]'],
+      price:       ['#prd_price2', '[name="product.salePrice"]'],
+      stock:       ['#stock', '[name="product.stockQuantity"]'],
+      category:    ['[name="category"]'],
+      detail:      ['textarea[name="editorContent"]'],
+      returnFee:   ['#return_price', '[name="product.deliveryInfo.claimDeliveryInfo.returnDeliveryFee"]'],
+      exchangeFee: ['#exchange_price', '[name="product.deliveryInfo.claimDeliveryInfo.exchangeDeliveryFee"]'],
+      asPhone:     ['#as_number', '[name="product.detailAttribute.afterServiceInfo.afterServiceTelephoneNumber"]'],
+      asGuide:     ['#as_info', '[name="product.detailAttribute.afterServiceInfo.afterServiceGuideContent"]'],
     },
   };
 
@@ -869,6 +873,8 @@ function parseFill(text) {
 var FILL_LABEL = {
   name: "상품명", price: "판매가", stock: "재고수량",
   category: "카테고리 검색어", detail: "상세설명",
+  returnFee: "반품배송비", exchangeFee: "교환배송비",
+  asPhone: "A/S 전화번호", asGuide: "A/S 안내",
 };
 
 function labelList(keys) {

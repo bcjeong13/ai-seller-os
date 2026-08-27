@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildFillBlock, parseFillBlock, FILL_HEADER, NOT_FILLED } from "../marketFill";
+import { buildFillBlock, parseFillBlock, asGuideText, FILL_HEADER, NOT_FILLED } from "../marketFill";
 import { toMarketplaceProduct } from "../marketplaceProduct";
 import { makeProduct, makeOption } from "../factory";
 
@@ -56,5 +56,46 @@ describe("자동 채우기 값", () => {
     expect(labels).toContain("이미지");
     expect(labels).toContain("출고지 · 반품지");
     expect(labels).toContain("상품정보 제공고시");
+  });
+});
+
+describe("배송·A/S 칸 — 화면을 펼쳐 읽은 뒤 추가한 것", () => {
+  const withFees = () =>
+    parseFillBlock(buildFillBlock(mp(), {
+      marketplace: "NAVER", stockQty: 20,
+      returnFeeKrw: 12000, exchangeFeeKrw: 12000, asPhone: "홍길동 010-1111-2222",
+    })).fields;
+
+  it("반품·교환 배송비를 보낸다 — 마켓 기본값을 두면 차액을 내가 낸다", () => {
+    expect(withFees().returnFee).toBe("12000");
+    expect(withFees().exchangeFee).toBe("12000");
+  });
+
+  it("A/S 전화번호는 내 설정값이다", () => {
+    expect(withFees().asPhone).toBe("홍길동 010-1111-2222");
+  });
+
+  it("A/S 안내문에 연락처가 들어간다", () => {
+    expect(withFees().asGuide).toContain("010-1111-2222");
+    expect(withFees().asGuide).toContain("판매자가 처리합니다");
+  });
+
+  it("★ 할 수 없는 약속을 만들지 않는다", () => {
+    for (const w of ["무상 수리", "평생", "100%", "언제든지"]) {
+      expect(asGuideText("010-0000-0000")).not.toContain(w);
+    }
+  });
+
+  it("A/S 연락처가 없으면 그 칸을 아예 보내지 않는다", () => {
+    const f = parseFillBlock(buildFillBlock(mp(), { marketplace: "NAVER", stockQty: 20 })).fields;
+    expect(f.asPhone).toBeUndefined();
+    expect(f.asGuide).toBeUndefined();
+  });
+
+  it("반품비 0원도 보낸다 — 판매자 부담이라는 뜻이다", () => {
+    const f = parseFillBlock(buildFillBlock(mp(), {
+      marketplace: "NAVER", stockQty: 20, returnFeeKrw: 0,
+    })).fields;
+    expect(f.returnFee).toBe("0");
   });
 });

@@ -525,6 +525,7 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
       {sel.map((m) => (
         <MarketCard
           key={m}
+          product={product}
           mp={toMarketplaceProduct(product, m, noticeDefaults())}
           listed={!!product.listings.find((x) => x.marketplace === m)?.listed}
           open={open === m}
@@ -541,20 +542,34 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
  * 네이버 자동 채우기.
  * 실제 등록화면을 읽어 확인한 칸만 채운다. 저장은 하지 않는다.
  */
-function NaverFill({ mp, onCopy }: { mp: MarketplaceProduct; onCopy: (t: string, l: string) => void }) {
+function NaverFill({ product, mp, onCopy }: {
+  product: Product; mp: MarketplaceProduct; onCopy: (t: string, l: string) => void;
+}) {
   const [stock, setStock] = useState(getSettings().listingStockQty ?? DEFAULT_LISTING_STOCK);
   const hint = mp.name.split(" ").slice(-2).join(" ");
+  const policy = product.sellerReturnPolicy ?? defaultSellerPolicy(product.supplierReturnPolicy);
+  const noAsPhone = !getSettings().asPhone?.trim();
 
   const copyFill = () => {
     updateSettings({ listingStockQty: stock });
-    onCopy(buildFillBlock(mp, { marketplace: "NAVER", stockQty: stock, categoryHint: hint }), "자동 채우기 값");
+    onCopy(
+      buildFillBlock(mp, {
+        marketplace: "NAVER",
+        stockQty: stock,
+        categoryHint: hint,
+        returnFeeKrw: policy.returnShippingKrw,
+        exchangeFeeKrw: policy.exchangeShippingKrw,
+        asPhone: getSettings().asPhone,
+      }),
+      "자동 채우기 값"
+    );
   };
 
   return (
     <div className="fill-box">
       <div className="fill-head">
         🪄 <b>자동 채우기</b>
-        <span className="tiny muted">상품명 · 판매가 · 재고수량 · 상세설명</span>
+        <span className="tiny muted">9개 칸</span>
       </div>
       <ol className="howto" style={{ marginTop: 6 }}>
         <li>아래 <b>[🪄 자동 채우기 값 복사]</b></li>
@@ -569,6 +584,13 @@ function NaverFill({ mp, onCopy }: { mp: MarketplaceProduct; onCopy: (t: string,
         </label>
         <button className="btn sm primary" onClick={copyFill}>🪄 자동 채우기 값 복사</button>
       </div>
+      {noAsPhone && (
+        <div className="warn-note" style={{ marginTop: 8 }}>
+          ⚠️ <b>설정 → 내 판매자 정보</b>에 A/S 연락처가 비어 있습니다. 채워두시면
+          A/S 전화번호·안내문까지 자동으로 들어갑니다.
+        </div>
+      )}
+
       <details className="fill-not">
         <summary>자동으로 안 되는 칸 {NOT_FILLED.length}개</summary>
         <ul className="ex-list" style={{ marginTop: 6 }}>
@@ -653,8 +675,9 @@ function ConsignmentTraps({ product }: { product: Product }) {
 }
 
 function MarketCard({
-  mp, listed, open, onToggle, onCopy, onListed,
+  product, mp, listed, open, onToggle, onCopy, onListed,
 }: {
+  product: Product;
   mp: MarketplaceProduct;
   listed: boolean;
   open: boolean;
@@ -724,7 +747,7 @@ function MarketCard({
         </tbody>
       </table>
 
-      {mp.marketplace === "NAVER" && <NaverFill mp={mp} onCopy={onCopy} />}
+      {mp.marketplace === "NAVER" && <NaverFill product={product} mp={mp} onCopy={onCopy} />}
 
       <div className="btn-row">
         <button className="btn sm primary" onClick={() => onCopy(marketCopyText(mp), `${mp.label} 등록정보 전체`)}>
