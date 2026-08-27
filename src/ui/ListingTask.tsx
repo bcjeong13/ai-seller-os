@@ -504,6 +504,7 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
           뜨면 아직 계정이 없는 것입니다. 사업자등록증·통신판매업 신고번호·정산 계좌가
           필요하고, 심사에 며칠 걸립니다. <b>한 마켓부터</b> 시작하세요.
         </div>
+        <ConsignmentTraps product={product} />
         <div className="listing-grid">
           {ALL_CHANNELS.map((m) => {
             const c = CHANNEL_META[m];
@@ -532,6 +533,77 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
         />
       ))}
     </>
+  );
+}
+
+/**
+ * 마켓 등록 화면에는 앱이 채워줄 수 없는 칸이 몇 개 있다.
+ * 위탁판매에서 사고가 나는 곳은 대부분 여기다.
+ */
+function ConsignmentTraps({ product }: { product: Product }) {
+  const [open, setOpen] = useState(true);
+  const policy = product.sellerReturnPolicy ?? defaultSellerPolicy(product.supplierReturnPolicy);
+
+  return (
+    <div className="card pad trap-card">
+      <div className="section-label">
+        ⚠️ 위탁판매라서 조심할 칸 <span className="tiny muted">앱이 못 채워주는 것</span>
+        <button className="btn xs" style={{ marginLeft: 8 }} onClick={() => setOpen((v) => !v)}>
+          {open ? "접기" : "펴기"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="traps">
+          <div className="trap">
+            <b>📦 재고수량</b>
+            <div>
+              도매처 재고를 그대로 넣지 마세요. <b>도매처가 품절돼도 내 마켓은 판매중으로 남습니다.</b>
+              처음에는 <b>10~30개</b> 정도로 잡고, 「오늘 할 일」의 공급가·재고 감시로 확인하세요.
+            </div>
+          </div>
+
+          <div className="trap">
+            <b>🏠 출고지 · 반품지 주소</b>
+            <div>
+              여기가 제일 위험합니다. 반품은 <b>이 주소로 돌아옵니다.</b>
+              내 집 주소를 넣으면 반품 물건이 집으로 오고, 도매처 주소를 넣으면
+              <b> 도매처가 모르는 물건을 받게 됩니다.</b>
+              <br />
+              <b>도매처와 먼저 합의하세요</b> — "반품을 그쪽으로 보내도 되는지". 합의 전에는
+              내 주소로 두는 편이 안전합니다.
+            </div>
+          </div>
+
+          <div className="trap">
+            <b>🚚 배송비 · 묶음배송</b>
+            <div>
+              배송비는 <b>선불(주문시결제)</b>. 착불로 두면 택배기사가 고객에게 돈을 요구합니다.
+              그리고 <b>묶음배송은 끄세요</b> — 상품마다 다른 도매처에서 따로 나가므로
+              묶어서 보낼 수 없습니다.
+            </div>
+          </div>
+
+          <div className="trap">
+            <b>🔁 반품 · 교환 배송비</b>
+            <div>
+              앱에서 정한 값 그대로 넣으세요 —
+              반품 <b>{formatKrw(policy.returnShippingKrw)}</b> · 교환 <b>{formatKrw(policy.exchangeShippingKrw)}</b>.
+              마켓 기본값을 그냥 두면 도매처가 받는 금액보다 적게 받아 차액을 내가 냅니다.
+            </div>
+          </div>
+
+          <div className="trap">
+            <b>🗂️ 카테고리</b>
+            <div>
+              앱이 추천하지 않습니다. 마켓에서 직접 고르세요.
+              <b>카테고리에 따라 요구하는 고시정보가 달라집니다</b> — 고르고 나서 위 고시정보와
+              맞는지 확인하세요.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -409,3 +409,9 @@ a.btn { display:inline-block; text-align:center; text-decoration:none; }
 .card.locked { border-style:dashed; }
 .lock-preview { display:flex; gap:6px; margin-top:10px; opacity:.5; }
 .ask-row.risky { background:var(--warn-bg); margin:0 -8px; padding-left:8px; padding-right:8px; border-radius:8px; }
+
+.trap-card { border-color:var(--warn); background:var(--warn-bg); }
+.traps { display:grid; gap:12px; margin-top:10px; }
+.trap { font-size:13.5px; line-height:1.65; }
+.trap > b { display:block; margin-bottom:3px; font-size:14px; }
+.trap > div { color:#6b5a2a; }
