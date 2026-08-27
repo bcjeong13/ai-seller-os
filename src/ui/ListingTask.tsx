@@ -66,7 +66,9 @@ export function ListingTask({ productId, onBack }: { productId: string; onBack: 
       <ImageCard product={product} />
       <ApproveCard product={product} approved={approved} />
 
-      {approved && <MarketSection product={product} onCopy={copy} />}
+      {approved
+        ? <MarketSection product={product} onCopy={copy} />
+        : <MarketSectionLocked product={product} />}
 
       {copied && <div className="copied fixed">✅ {copied} 복사됨</div>}
     </div>
@@ -432,6 +434,46 @@ function ApproveCard({ product, approved }: { product: Product; approved: boolea
 // ③ 마켓별 등록
 // ------------------------------------------------------------
 
+/**
+ * 승인 전에도 ③단계가 어디에 있는지 보여준다.
+ * 안 보이면 "그 부분이 없다"고 여기게 된다 — 실제로 사용자가 그렇게 느꼈다.
+ */
+function MarketSectionLocked({ product }: { product: Product }) {
+  const fee = feeProfileOf(product.marketplace);
+  const r = reviewForListing(product, fee, noticeDefaults());
+  const a = product.listingApproval;
+
+  const todo: string[] = [...r.blockers];
+  if (!r.blocked) {
+    if (!a?.imageChecked) todo.push("이미지를 써도 되는지 확인 (위 승인 칸)");
+    if (!a?.wordingChecked) todo.push("문구를 확인 (위 승인 칸)");
+  }
+
+  return (
+    <div className="card pad locked">
+      <div className="section-label">🔒 ③ 마켓에 올리기 <span className="tiny muted">승인하면 열립니다</span></div>
+      <p className="hint" style={{ marginTop: 0 }}>
+        승인하면 여기에 <b>네이버·쿠팡·11번가·G마켓·옥션</b>별로 그대로 옮겨 넣을
+        상품명·판매가·옵션·고시정보와 판매자센터 링크가 나타납니다.
+      </p>
+      <div className="lock-preview">
+        {ALL_CHANNELS.map((m) => {
+          const c = CHANNEL_META[m];
+          return (
+            <span key={m} className="chch" style={{ color: c.color, background: c.bg }}>{c.short}</span>
+          );
+        })}
+      </div>
+      <div className="warn-note" style={{ marginTop: 12 }}>
+        <b>지금 막고 있는 것</b>
+        <ul className="ex-list" style={{ marginTop: 6 }}>
+          {todo.length ? todo.map((t, i) => <li key={i}>{t}</li>) : <li>위 승인 버튼을 누르세요</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: string, l: string) => void }) {
   const [sel, setSel] = useState<Marketplace[]>(
     ALL_CHANNELS.filter((m) => !product.listings.find((l) => l.marketplace === m)?.listed)
@@ -455,6 +497,11 @@ function MarketSection({ product, onCopy }: { product: Product; onCopy: (t: stri
         <div className="hint" style={{ marginTop: 6 }}>
           <b>상세페이지 HTML은 5곳이 모두 같습니다</b> — 한 번 복사해두고 붙여넣기만 반복하면 됩니다.
           다만 <b>이미지는 마켓마다 다시 올려야</b> 합니다. 각 마켓 서버에 올라가야 하기 때문입니다.
+        </div>
+        <div className="warn-note" style={{ marginTop: 10 }}>
+          ⚠️ <b>판매자 계정이 먼저 있어야 합니다.</b> [판매자센터 ↗]를 눌렀을 때 가입 화면이
+          뜨면 아직 계정이 없는 것입니다. 사업자등록증·통신판매업 신고번호·정산 계좌가
+          필요하고, 심사에 며칠 걸립니다. <b>한 마켓부터</b> 시작하세요.
         </div>
         <div className="listing-grid">
           {ALL_CHANNELS.map((m) => {
