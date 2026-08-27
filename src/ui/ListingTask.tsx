@@ -21,7 +21,7 @@ import {
 import { defaultSellerPolicy, normalizeSellerPolicy, comparePolicies, MIN_WITHDRAWAL_DAYS } from "../domain/sellerPolicy";
 import { formatKrw } from "../domain/money";
 import { buildFillBlock, NOT_FILLED } from "../domain/marketFill";
-import { requestFill, isExtReady, onExtReady, fieldNames } from "../store/extBridge";
+import { requestFill, isExtReady, onExtReady, recheckExt, fieldNames } from "../store/extBridge";
 import { CHANNEL_META } from "./meta";
 
 /** 설정에 적어둔 공통 고시정보 — 상품마다 다시 치지 않게 한다 */
@@ -554,7 +554,18 @@ function NaverFill({ product, mp, onCopy }: {
   const [extReady, setExtReady] = useState(isExtReady());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [recheckMsg, setRecheckMsg] = useState("");
   useEffect(() => onExtReady(setExtReady), []);
+
+  const recheck = async () => {
+    setRecheckMsg("확인 중…");
+    const ok = await recheckExt();
+    setRecheckMsg(
+      ok
+        ? "✅ 연결됐습니다."
+        : "아직입니다. 확장 새로고침 → 이 화면 새로고침 순서를 지켰는지 확인해 주세요."
+    );
+  };
 
   const block = () => {
     updateSettings({ listingStockQty: stock });
@@ -626,9 +637,16 @@ function NaverFill({ product, mp, onCopy }: {
       {msg && <div className="tiny" style={{ marginTop: 8, lineHeight: 1.6 }}>{msg}</div>}
 
       {!extReady && (
-        <div className="tiny muted" style={{ marginTop: 6 }}>
-          확장을 찾지 못했습니다. <b>0.9.0 이상</b>으로 새로고침한 뒤 이 화면도 새로고침하면
-          버튼 한 번으로 채울 수 있습니다.
+        <div className="warn-note" style={{ marginTop: 8 }}>
+          <b>확장을 찾지 못했습니다</b> — 지금은 복사해서 옮기셔야 합니다.
+          버튼 한 번으로 채우려면 <b>순서대로</b> 해주세요:
+          <ol className="howto" style={{ marginTop: 6 }}>
+            <li><code>edge://extensions</code> → AI Seller OS 수집기 → 🔄 → 버전 <b>0.9.0</b> 확인</li>
+            <li><b>그다음에</b> 이 화면을 새로고침 (F5) — 확장을 고치면 이미 열려 있던 탭에는 붙지 않습니다</li>
+            <li>아래 <b>[연결 확인]</b></li>
+          </ol>
+          <button className="btn sm" onClick={recheck}>연결 확인</button>
+          {recheckMsg && <div className="tiny" style={{ marginTop: 6 }}>{recheckMsg}</div>}
         </div>
       )}
       {noAsPhone && (

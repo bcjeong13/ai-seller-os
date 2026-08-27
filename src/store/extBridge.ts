@@ -39,14 +39,32 @@ function markReady() {
   readyListeners.forEach((l) => l(true));
 }
 
+function ping() {
+  window.postMessage({ source: "AISOS_APP", type: "PING" }, window.location.origin);
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("message", (ev: MessageEvent) => {
     if (ev.source !== window) return;
     const m = ev.data;
     if (m?.source === "AISOS_EXT" && m.type === "READY") markReady();
   });
-  // 이미 붙어 있는데 READY를 놓쳤을 수 있다 — 한 번 물어본다
-  window.postMessage({ source: "AISOS_APP", type: "PING" }, window.location.origin);
+
+  // 확장이 언제 붙을지 모른다. 한 번만 묻고 포기하면 놓친다.
+  ping();
+  const retries = [100, 400, 1200, 3000];
+  retries.forEach((ms) =>
+    setTimeout(() => { if (!ready) ping(); }, ms)
+  );
+}
+
+/** 화면에서 [연결 확인]을 눌렀을 때 — 지금 다시 물어본다 */
+export function recheckExt(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (ready) { resolve(true); return; }
+    ping();
+    setTimeout(() => resolve(ready), 600);
+  });
 }
 
 export function isExtReady(): boolean {
